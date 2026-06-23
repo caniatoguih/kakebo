@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: kakebo_db
+    environment:
+      POSTGRES_USER: gcaniato
+      POSTGRES_PASSWORD: "9519Gc!#"
+      POSTGRES_DB: kakebo
+    ports:
+      - "5432:5432"
+    volumes:
+      - kakebo_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kakebo_app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Override the DATABASE_URL to point to the 'db' container instead of 'localhost'
+      - DATABASE_URL=postgresql://gcaniato:9519Gc!%23@db:5432/kakebo?schema=public
+    depends_on:
+      - db
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+    # Run prisma db push before starting the application to ensure the database schema is updated
+    command: sh -c "npx prisma db push && npm run dev"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kakebo_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3000/api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  kakebo_pgdata:

@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: kakebo_db_prod
+    environment:
+      POSTGRES_USER: ${DB_USER:-gcaniato}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-9519Gc!#}
+      POSTGRES_DB: ${DB_NAME:-kakebo}
+    volumes:
+      - kakebo_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kakebo_app_prod
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-gcaniato}:${DB_PASSWORD:-9519Gc!%23}@db:5432/${DB_NAME:-kakebo}?schema=public
+      - JWT_SECRET=${JWT_SECRET:-sua_chave_secreta_super_segura_de_producao}
+      - PORT=3000
+    depends_on:
+      - db
+    command: sh -c "npx prisma migrate deploy && npm start"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: kakebo_frontend_prod
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  kakebo_pgdata:
+

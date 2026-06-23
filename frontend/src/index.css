@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Japanese aesthetic / Zen minimal light theme */
+    --background: 40 20% 98%;      /* Soft off-white */
+    --foreground: 20 10% 15%;      /* Dark charcoal */
+    --card: 0 0% 100%;
+    --card-foreground: 20 10% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 10% 15%;
+    --primary: 340 70% 50%;        /* Crimson/Sakura accent */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 40 15% 90%;       /* Sand/Wood */
+    --secondary-foreground: 20 10% 15%;
+    --muted: 40 10% 90%;
+    --muted-foreground: 20 5% 45%;
+    --accent: 40 15% 90%;
+    --accent-foreground: 20 10% 15%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 40 15% 85%;
+    --input: 40 15% 85%;
+    --ring: 340 70% 50%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    /* Japanese aesthetic / Zen minimal dark theme */
+    --background: 220 15% 10%;     /* Ink black / Indigo */
+    --foreground: 40 20% 98%;      /* Soft off-white */
+    --card: 220 15% 13%;
+    --card-foreground: 40 20% 98%;
+    --popover: 220 15% 13%;
+    --popover-foreground: 40 20% 98%;
+    --primary: 340 70% 60%;        /* Brighter Crimson/Sakura */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 10% 20%;
+    --secondary-foreground: 40 20% 98%;
+    --muted: 220 10% 20%;
+    --muted-foreground: 40 10% 65%;
+    --accent: 220 10% 20%;
+    --accent-foreground: 40 20% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 10% 20%;
+    --input: 220 10% 20%;
+    --ring: 340 70% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+}

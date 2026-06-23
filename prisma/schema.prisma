@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id           String          @id @default(uuid())
+  nome         String
+  email        String          @unique
+  senha_hash   String
+  data_criacao DateTime        @default(now())
+  
+  contas       ContaBancaria[]
+  categorias   Categoria[]
+  orcamentos   Orcamento[]
+  transacoes   Transacao[]
+
+  @@map("usuarios")
+}
+
+model ContaBancaria {
+  id             String                @id @default(uuid())
+  usuario_id     String
+  nome           String
+  tipo           String                // Corrente, Poupanca, Dinheiro, CartaoCredito
+  saldo_inicial  Decimal               @db.Decimal(10, 2)
+  saldo_atual    Decimal               @db.Decimal(10, 2)
+  
+  usuario        Usuario               @relation(fields: [usuario_id], references: [id])
+  cartao_detalhe CartaoCreditoDetalhe?
+  transacoes_origem  Transacao[]       @relation("ContaOrigem")
+
+  @@map("contas_bancarias")
+}
+
+model CartaoCreditoDetalhe {
+  id                        String        @id @default(uuid())
+  conta_id                  String        @unique
+  limite_total              Decimal       @db.Decimal(10, 2)
+  dia_fechamento            Int
+  dia_vencimento            Int
+  conta_pagamento_padrao_id String?       // Conta bancária padrão para pagar a fatura
+
+  conta                     ContaBancaria @relation(fields: [conta_id], references: [id])
+
+  @@map("cartoes_credito_detalhes")
+}
+
+model Categoria {
+  id            String         @id @default(uuid())
+  usuario_id    String
+  nome          String
+  pilar         String         // Sobrevivencia, Lazer, Cultura, Extras
+  tipo          String         // Receita, Despesa
+  
+  usuario       Usuario        @relation(fields: [usuario_id], references: [id])
+  subcategorias Subcategoria[]
+
+  @@map("categorias")
+}
+
+model Subcategoria {
+  id           String      @id @default(uuid())
+  categoria_id String
+  nome         String
+
+  categoria    Categoria   @relation(fields: [categoria_id], references: [id])
+  orcamentos   Orcamento[]
+  transacoes   Transacao[]
+
+  @@map("subcategorias")
+}
+
+model Orcamento {
+  id              String       @id @default(uuid())
+  usuario_id      String
+  subcategoria_id String
+  mes             Int
+  ano             Int
+  valor_orcado    Decimal      @db.Decimal(10, 2)
+
+  usuario         Usuario      @relation(fields: [usuario_id], references: [id])
+  subcategoria    Subcategoria @relation(fields: [subcategoria_id], references: [id])
+
+  @@map("orcamentos")
+}
+
+model Transacao {
+  id               String        @id @default(uuid())
+  usuario_id       String
+  conta_id         String
+  subcategoria_id  String?
+  descricao        String
+  valor            Decimal       @db.Decimal(10, 2)
+  tipo             String        // Receita, Despesa, Transferencia
+  data_transacao   DateTime
+  status           String        // Pendente, Pago
+  parcela_atual    Int           @default(1)
+  total_parcelas   Int           @default(1)
+  transacao_pai_id String?       // Para agrupar compras parceladas
+  recorrente       Boolean       @default(false) // Para identificar compras recorrentes / assinaturas
+
+  usuario          Usuario       @relation(fields: [usuario_id], references: [id])
+  conta            ContaBancaria @relation("ContaOrigem", fields: [conta_id], references: [id])
+  subcategoria     Subcategoria? @relation(fields: [subcategoria_id], references: [id])
+
+  @@map("transacoes")
+}
