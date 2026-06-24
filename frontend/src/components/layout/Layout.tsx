@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Receipt, PiggyBank, CreditCard, Menu, LogOut, Tags, Cloud, ScrollText } from 'lucide-react';
+import { LayoutDashboard, Receipt, PiggyBank, CreditCard, Menu, LogOut, Tags, Cloud, ScrollText, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 export function Layout() {
   const location = useLocation();
   const { logout, usuario } = useAuth();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   
   const navItems = [
     { name: 'Reflexão', path: '/dashboard', icon: LayoutDashboard },
@@ -20,16 +22,32 @@ export function Layout() {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50/50 dark:bg-slate-950 p-0 md:p-4">
       {/* App Canvas Frame (Large rounded container sitting on soft background) */}
-      <div className="flex w-full h-full overflow-hidden bg-card md:rounded-[2rem] border border-slate-200/50 dark:border-slate-800/60 md:shadow-[0_8px_32px_rgba(0,0,0,0.03)] transition-all duration-300">
+      <div className="relative flex w-full h-full overflow-hidden bg-card md:rounded-[2rem] border border-slate-200/50 dark:border-slate-800/60 md:shadow-[0_8px_32px_rgba(0,0,0,0.03)] transition-all duration-300">
         
-        {/* Sidebar (Desktop) */}
-        <aside className="hidden w-64 flex-col border-r border-slate-100 dark:border-slate-800/60 bg-card md:flex">
+        {/* Mobile Overlay */}
+        {isMobileOpen && (
+          <div 
+            className="absolute inset-0 z-30 bg-slate-900/50 backdrop-blur-sm md:hidden transition-opacity"
+            onClick={() => setIsMobileOpen(false)}
+          />
+        )}
+
+        {/* Sidebar (Desktop & Mobile) */}
+        <aside className={cn(
+          "absolute md:relative z-40 h-full w-64 flex-col border-r border-slate-100 dark:border-slate-800/60 bg-card flex transition-transform duration-300 ease-in-out",
+          isMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full md:translate-x-0"
+        )}>
           {/* Brand Logo Header */}
-          <div className="flex h-20 items-center px-6 gap-2.5">
-            <div className="p-2 rounded-xl bg-pink-600 text-white shadow-md shadow-pink-500/20">
-              <Cloud className="h-5 w-5 fill-white/10" />
+          <div className="flex h-20 items-center justify-between px-6">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-pink-600 text-white shadow-md shadow-pink-500/20">
+                <Cloud className="h-5 w-5 fill-white/10" />
+              </div>
+              <span className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100 font-sans">kakebo</span>
             </div>
-            <span className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100 font-sans">kakebo</span>
+            <Button variant="ghost" size="icon" className="md:hidden text-slate-500" onClick={() => setIsMobileOpen(false)}>
+              <X className="h-5 w-5" />
+            </Button>
           </div>
 
           {/* Navigation Items */}
@@ -40,6 +58,7 @@ export function Layout() {
                 <Link
                   key={item.path}
                   to={item.path}
+                  onClick={() => setIsMobileOpen(false)}
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 border-l-[3px]",
                     isActive 
@@ -87,7 +106,7 @@ export function Layout() {
           {/* Header (Hidden on Desktop) */}
           <header className="flex md:hidden h-20 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 bg-card px-6">
             <div className="flex items-center">
-              <Button variant="ghost" size="icon" className="rounded-lg">
+              <Button variant="ghost" size="icon" className="rounded-lg" onClick={() => setIsMobileOpen(true)}>
                 <Menu className="h-5 w-5" />
               </Button>
               <div className="flex items-center gap-2 ml-4">
