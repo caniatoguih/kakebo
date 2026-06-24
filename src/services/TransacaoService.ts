@@ -1,6 +1,6 @@
 import { TransacaoRepository } from '../repositories/TransacaoRepository';
 import { Prisma } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'crypto';
 import prisma from '../lib/prisma';
 
 function nativeDifferenceInDays(d1: Date, d2: Date): number {
