@@ -16,10 +16,10 @@ const PILAR_CONFIG = {
   Sobrevivencia: {
     label: 'Sobrevivência',
     icon: Wallet,
-    color: 'from-pink-50/50 to-pink-100/30 border-pink-200/60 dark:from-pink-950/20 dark:to-pink-950/10 dark:border-pink-900/20',
-    barBase: 'bg-pink-600 dark:bg-pink-500',
-    border: 'border-pink-200/60 dark:border-pink-900/30',
-    badge: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
+    color: 'from-emerald-50/50 to-emerald-100/30 border-emerald-200/60 dark:from-emerald-950/20 dark:to-emerald-950/10 dark:border-emerald-900/20',
+    barBase: 'bg-emerald-600 dark:bg-emerald-500',
+    border: 'border-emerald-200/60 dark:border-emerald-900/30',
+    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   },
   Lazer: {
     label: 'Lazer',

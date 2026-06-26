@@ -248,7 +248,7 @@ export function Transacoes() {
             onClick={() => setShowFilters(!showFilters)}
           >
             <div className="flex items-center gap-2">
-              <Filter className="h-4.5 w-4.5 text-pink-600 dark:text-pink-400" />
+              <Filter className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
               <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Filtros de Busca</h3>
             </div>
             <div className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60">
@@ -269,7 +269,7 @@ export function Transacoes() {
                       placeholder="Buscar transação..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9 h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus-visible:ring-pink-600"
+                      className="pl-9 h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus-visible:ring-emerald-600"
                     />
                   </div>
                 </div>
@@ -278,7 +278,7 @@ export function Transacoes() {
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Status</Label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus:ring-pink-600">
+                    <SelectTrigger className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus:ring-emerald-600">
                       <SelectValue placeholder="Todos os Status" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
@@ -293,7 +293,7 @@ export function Transacoes() {
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Conta Bancária</Label>
                   <Select value={contaFilter} onValueChange={setContaFilter}>
-                    <SelectTrigger className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus:ring-pink-600">
+                    <SelectTrigger className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus:ring-emerald-600">
                       <SelectValue placeholder="Todas as Contas" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
@@ -311,7 +311,7 @@ export function Transacoes() {
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Período</Label>
                   <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                    <SelectTrigger className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus:ring-pink-600">
+                    <SelectTrigger className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus:ring-emerald-600">
                       <SelectValue placeholder="Período" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
@@ -387,7 +387,7 @@ export function Transacoes() {
                       }
                     }}
                     onChange={handleSelectAll}
-                    className="h-4 w-4 rounded border-slate-300 text-pink-600 focus:ring-pink-500 cursor-pointer accent-pink-600"
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
                   />
                 </TableHead>
                 <TableHead className="font-bold text-slate-700 dark:text-slate-300">Data</TableHead>
@@ -421,7 +421,7 @@ export function Transacoes() {
                           type="checkbox"
                           checked={selectedIds.includes(t.id)}
                           onChange={() => handleSelectOne(t.id!)}
-                          className="h-4 w-4 rounded border-slate-300 text-pink-600 focus:ring-pink-500 cursor-pointer accent-pink-600"
+                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
                         />
                       )}
                     </TableCell>
@@ -504,7 +504,7 @@ export function Transacoes() {
       {selectedIds.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-slate-955/95 backdrop-blur-md border border-slate-800 dark:border-slate-850 text-slate-100 px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-8 fade-in duration-300">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center justify-center bg-pink-600 text-white font-bold text-xs px-2.5 py-1 rounded-full">
+            <span className="inline-flex items-center justify-center bg-emerald-600 text-white font-bold text-xs px-2.5 py-1 rounded-full">
               {selectedIds.length}
             </span>
             <span className="text-sm font-semibold">

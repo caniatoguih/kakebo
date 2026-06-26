@@ -11,7 +11,7 @@
     --card-foreground: 20 10% 15%;
     --popover: 0 0% 100%;
     --popover-foreground: 20 10% 15%;
-    --primary: 340 70% 50%;        /* Crimson/Sakura accent */
+    --primary: 142 76% 36%;        /* Financial Green accent */
     --primary-foreground: 0 0% 100%;
     --secondary: 40 15% 90%;       /* Sand/Wood */
     --secondary-foreground: 20 10% 15%;
@@ -23,7 +23,7 @@
     --destructive-foreground: 0 0% 98%;
     --border: 40 15% 85%;
     --input: 40 15% 85%;
-    --ring: 340 70% 50%;
+    --ring: 142 76% 36%;
     --radius: 1rem;
   }
 
@@ -35,7 +35,7 @@
     --card-foreground: 40 20% 98%;
     --popover: 220 15% 13%;
     --popover-foreground: 40 20% 98%;
-    --primary: 340 70% 60%;        /* Brighter Crimson/Sakura */
+    --primary: 142 71% 45%;        /* Financial Green accent */
     --primary-foreground: 0 0% 100%;
     --secondary: 220 10% 20%;
     --secondary-foreground: 40 20% 98%;
@@ -47,7 +47,7 @@
     --destructive-foreground: 0 0% 98%;
     --border: 220 10% 20%;
     --input: 220 10% 20%;
-    --ring: 340 70% 60%;
+    --ring: 142 71% 45%;
   }
 }
 

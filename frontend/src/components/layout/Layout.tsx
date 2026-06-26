@@ -40,7 +40,7 @@ export function Layout() {
           {/* Brand Logo Header */}
           <div className="flex h-20 items-center justify-between px-6">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-pink-600 text-white shadow-md shadow-pink-500/20">
+              <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-500/20">
                 <Cloud className="h-5 w-5 fill-white/10" />
               </div>
               <span className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100 font-sans">kakebo</span>
@@ -62,11 +62,11 @@ export function Layout() {
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 border-l-[3px]",
                     isActive 
-                      ? "bg-pink-50 text-pink-600 border-l-pink-600 dark:bg-pink-950/20 dark:text-pink-400 dark:border-l-pink-500 font-bold shadow-[0_4px_12px_rgba(219,39,119,0.03)]" 
+                      ? "bg-emerald-50 text-emerald-600 border-l-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-l-emerald-500 font-bold shadow-[0_4px_12px_rgba(5,150,105,0.03)]" 
                       : "text-slate-400 border-l-transparent hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/40"
                   )}
                 >
-                  <item.icon className={cn("h-4.5 w-4.5 transition-colors", isActive ? "text-pink-600 dark:text-pink-400" : "text-slate-400")} />
+                  <item.icon className={cn("h-4.5 w-4.5 transition-colors", isActive ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400")} />
                   {item.name}
                 </Link>
               )
@@ -77,7 +77,7 @@ export function Layout() {
           <div className="p-4 border-t border-slate-100 dark:border-slate-800/60 flex flex-col gap-3 mt-auto">
             {usuario && (
               <div className="flex items-center gap-3 px-2">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-pink-500 to-rose-600 flex items-center justify-center text-white font-extrabold shadow-md shadow-pink-500/20 text-sm shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white font-extrabold shadow-md shadow-emerald-500/20 text-sm shrink-0">
                   {usuario.nome
                     ? usuario.nome.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase()
                     : 'U'}
@@ -110,7 +110,7 @@ export function Layout() {
                 <Menu className="h-5 w-5" />
               </Button>
               <div className="flex items-center gap-2 ml-4">
-                <div className="p-1.5 rounded-lg bg-pink-600 text-white">
+                <div className="p-1.5 rounded-lg bg-emerald-600 text-white">
                   <Cloud className="h-4 w-4" />
                 </div>
                 <span className="text-lg font-bold text-slate-800 dark:text-slate-100">kakebo</span>

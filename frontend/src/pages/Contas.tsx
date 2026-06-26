@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Wallet, CreditCard, PiggyBank, Banknote, Trash2 } from 'lucide-react';
 
 const tipoConfig: Record<string, { icon: React.ElementType; label: string; color: string }> = {
-  Corrente: { icon: Wallet, label: 'Conta Corrente', color: 'text-pink-500' },
+  Corrente: { icon: Wallet, label: 'Conta Corrente', color: 'text-emerald-500' },
   Poupanca: { icon: PiggyBank, label: 'Poupança', color: 'text-green-500' },
   Dinheiro: { icon: Banknote, label: 'Dinheiro', color: 'text-yellow-500' },
   CartaoCredito: { icon: CreditCard, label: 'Cartão de Crédito', color: 'text-purple-500' },

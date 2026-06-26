@@ -154,7 +154,7 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
   };
 
   const defaultTrigger = editItem ? (
-    <Button variant="ghost" size="icon" className="h-8 w-8 text-pink-600 hover:text-pink-800 hover:bg-pink-50 dark:text-pink-400 dark:hover:bg-pink-900/30 rounded-lg">
+    <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30 rounded-lg">
       <Pencil className="h-4 w-4" />
     </Button>
   ) : (

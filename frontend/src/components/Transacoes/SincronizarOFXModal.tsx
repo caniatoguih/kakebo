@@ -687,9 +687,9 @@ export function SincronizarOFXModal(): React.ReactElement {
                 <span className="text-2xl font-black text-amber-600 dark:text-amber-400">{localSuggestedTransfers.length}</span>
                 <span className="text-[10px] text-muted-foreground">Saídas e Entradas cruzadas</span>
               </div>
-              <div className="bg-pink-500/5 border border-pink-500/15 rounded-lg p-3 flex flex-col justify-center gap-0.5">
-                <span className="text-[10px] font-bold text-pink-600 dark:text-pink-400 uppercase tracking-wider">Lançamentos Sem Match</span>
-                <span className="text-2xl font-black text-pink-600 dark:text-pink-400">{localNaoEncontradas.length}</span>
+              <div className="bg-emerald-500/5 border border-emerald-500/15 rounded-lg p-3 flex flex-col justify-center gap-0.5">
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Lançamentos Sem Match</span>
+                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{localNaoEncontradas.length}</span>
                 <span className="text-[10px] text-muted-foreground">Lançamentos isolados nos extratos</span>
               </div>
             </div>
@@ -827,8 +827,8 @@ export function SincronizarOFXModal(): React.ReactElement {
 
               {/* Direita: Outros Lançamentos Sem Correspondência (4/10) */}
               <div className="col-span-4 border rounded-lg flex flex-col min-h-0 bg-background/50">
-                <div className="p-3 border-b bg-pink-500/5 flex items-center justify-between shrink-0">
-                  <span className="text-xs font-extrabold text-pink-600 dark:text-pink-400 flex items-center gap-1.5">
+                <div className="p-3 border-b bg-emerald-500/5 flex items-center justify-between shrink-0">
+                  <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                     <HelpCircle className="h-4 w-4" />
                     Lançamentos Sem Match ({localNaoEncontradas.length})
                   </span>

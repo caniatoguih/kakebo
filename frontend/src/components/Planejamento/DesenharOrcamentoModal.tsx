@@ -245,7 +245,7 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
 
                 <div className={`border rounded-xl p-3.5 flex flex-col justify-center gap-0.5 ${
                   previsaoReceita >= previsaoDespesa 
-                    ? 'bg-pink-500/5 dark:bg-pink-500/10 border-pink-500/15 text-pink-600 dark:text-pink-400'
+                    ? 'bg-emerald-500/5 dark:bg-emerald-500/10 border-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                     : 'bg-amber-500/5 dark:bg-amber-500/10 border-amber-500/15 text-amber-600 dark:text-amber-400'
                 }`}>
                   <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">

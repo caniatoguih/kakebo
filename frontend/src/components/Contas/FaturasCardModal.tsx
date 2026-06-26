@@ -243,7 +243,7 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                                         <span>·</span>
                                         {t.recorrente ? (
                                           <div className="flex items-center gap-1.5">
-                                            <span className="bg-pink-100/60 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 font-bold px-1.5 py-0.5 rounded text-[9px]">
+                                            <span className="bg-emerald-100/60 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold px-1.5 py-0.5 rounded text-[9px]">
                                               Recorrência {t.parcela_atual}/{t.total_parcelas}
                                             </span>
                                             {t.transacao_pai_id && (
@@ -254,7 +254,7 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                                                     handleProrrogar(t.transacao_pai_id!);
                                                   }}
                                                   title="Prorrogar esta recorrência"
-                                                  className="text-pink-600 dark:text-pink-400 hover:text-pink-800 dark:hover:text-pink-300 transition-colors duration-150 flex items-center gap-0.5 text-[9px] font-semibold border border-pink-200 dark:border-pink-800 bg-pink-50 dark:bg-pink-950/30 px-1 py-0.5 rounded-sm active:scale-95 cursor-pointer"
+                                                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors duration-150 flex items-center gap-0.5 text-[9px] font-semibold border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 px-1 py-0.5 rounded-sm active:scale-95 cursor-pointer"
                                                 >
                                                   <CalendarPlus className="h-2.5 w-2.5" />
                                                   <span>Prorrogar</span>

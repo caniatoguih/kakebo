@@ -327,7 +327,7 @@ export function FluxoContabil() {
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 no-print">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-3">
-            <ScrollText className="h-8 w-8 text-pink-600 dark:text-pink-400" />
+            <ScrollText className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
             Fluxo Contábil (DFC)
           </h1>
           <p className="text-muted-foreground">
@@ -344,21 +344,21 @@ export function FluxoContabil() {
             <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-950 border border-slate-200/55 dark:border-slate-800/60">
               <button
                 onClick={() => setStatusFilter('Pago')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${statusFilter === 'Pago' ? 'bg-white dark:bg-slate-900 text-pink-600 dark:text-pink-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${statusFilter === 'Pago' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Realizado
               </button>
               <button
                 onClick={() => setStatusFilter('Pendente')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${statusFilter === 'Pendente' ? 'bg-white dark:bg-slate-900 text-pink-600 dark:text-pink-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${statusFilter === 'Pendente' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
               >
                 <AlertCircle className="h-3.5 w-3.5" />
                 Previsto
               </button>
               <button
                 onClick={() => setStatusFilter('Ambos')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${statusFilter === 'Ambos' ? 'bg-white dark:bg-slate-900 text-pink-600 dark:text-pink-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${statusFilter === 'Ambos' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
               >
                 <Eye className="h-3.5 w-3.5" />
                 Ambos
@@ -454,7 +454,7 @@ export function FluxoContabil() {
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-pink-600 border-t-transparent"></div>
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent"></div>
           <p className="text-muted-foreground text-sm font-semibold">Conciliando lançamentos e saldos...</p>
         </div>
       ) : isError ? (
@@ -475,7 +475,7 @@ export function FluxoContabil() {
                   </h3>
                   <p className="text-[10px] text-muted-foreground">Saldo final acumulado em {formatMonthLabel(dfc.meses[dfc.meses.length - 1])}</p>
                 </div>
-                <div className="p-3 bg-pink-50 dark:bg-pink-950/20 text-pink-600 dark:text-pink-400 rounded-xl">
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-xl">
                   <Wallet className="h-6 w-6" />
                 </div>
               </CardContent>
@@ -526,10 +526,10 @@ export function FluxoContabil() {
             <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800/80 no-print">
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
                 Visualizando {dfc.meses.length} meses ({statusFilter === 'Pago' ? 'Apenas Realizado' : statusFilter === 'Pendente' ? 'Apenas Previsto' : 'Realizado + Previsto'}) 
-                {contaSelecionada !== 'all' && <span className="text-pink-600 dark:text-pink-400 font-extrabold">• Conta Filtrada</span>}
+                {contaSelecionada !== 'all' && <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">• Conta Filtrada</span>}
               </span>
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={expandAll} className="h-8 px-2 text-xs font-bold text-pink-600 dark:text-pink-400 hover:bg-pink-50/50 dark:hover:bg-pink-950/20 rounded-lg">
+                <Button variant="ghost" size="sm" onClick={expandAll} className="h-8 px-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 rounded-lg">
                   Expandir Tudo
                 </Button>
                 <Button variant="ghost" size="sm" onClick={collapseAll} className="h-8 px-2 text-xs font-bold text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg">
@@ -718,12 +718,12 @@ export function FluxoContabil() {
                     ))}
                   </tr>
 
-                  <tr className="bg-pink-50/20 dark:bg-pink-950/10 font-bold border-b-2 border-pink-500 print-saldo-acumulado-row">
-                    <td className="py-4 px-6 text-sm text-pink-700 dark:text-pink-400 sticky left-0 bg-pink-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800/80 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] z-10">
+                  <tr className="bg-emerald-50/20 dark:bg-emerald-950/10 font-bold border-b-2 border-emerald-500 print-saldo-acumulado-row">
+                    <td className="py-4 px-6 text-sm text-emerald-700 dark:text-emerald-400 sticky left-0 bg-emerald-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800/80 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] z-10">
                       Saldo Acumulado (Patrimônio)
                     </td>
                     {dfc.meses.map((m: string) => (
-                      <td key={`saldo-acumulado-${m}`} className="py-4 px-4 text-right text-xs text-pink-700 dark:text-pink-400 font-bold text-sm">
+                      <td key={`saldo-acumulado-${m}`} className="py-4 px-4 text-right text-xs text-emerald-700 dark:text-emerald-400 font-bold text-sm">
                         {formatCurrency(dfc.saldo_acumulado[m] ?? 0)}
                       </td>
                     ))}
