@@ -15,7 +15,7 @@
 [functions]
   node_bundler = "esbuild"
   # Prisma usa binários nativos — não embutir no bundle
-  external_node_modules = ["@prisma/client", ".prisma"]
+  external_node_modules = ["@prisma/client", ".prisma", "pino-pretty"]
   included_files = [
     "node_modules/.prisma/client/**",
     "node_modules/@prisma/client/**",
