@@ -10,8 +10,18 @@ import routes from './routes';
 
 const app = express();
 
+// Necessário atrás de proxy (Netlify, Vercel, nginx) para rate-limit e IPs corretos
+app.set('trust proxy', 1);
+
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+      : true,
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(pinoHttp({ logger }));
 

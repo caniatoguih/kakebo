@@ -61,15 +61,17 @@
     ```bash
     npm install
     ```
-3.  Configure as variáveis de ambiente criando um arquivo `.env` na raiz da pasta `kakebo`:
+3.  Configure as variáveis de ambiente criando um arquivo `.env` na raiz (veja `.env.example`):
     ```env
-    DATABASE_URL="file:./dev.db"
+    DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/kakebo"
     JWT_SECRET="sua-chave-secreta-kakebo"
-    PORT=3333
+    PORT=3000
     ```
-4.  Rode as migrações do Prisma para criar as tabelas do banco de dados:
+4.  Crie o schema no banco (migrações ou push):
     ```bash
-    npx prisma migrate dev
+    npx prisma db push
+    # ou, se houver pasta prisma/migrations:
+    # npx prisma migrate dev
     ```
 5.  Inicie o servidor de desenvolvimento:
     ```bash
@@ -94,11 +96,88 @@
 
 ---
 
+## ☁️ Deploy no Netlify (frontend + backend)
+
+O projeto está preparado para **um único site no Netlify**:
+- **Frontend** (Vite/React) → estático em `frontend/dist`
+- **Backend** (Express + Prisma) → Netlify Function em `netlify/functions/api.ts`
+- Rotas `/api/*` são reescritas para a function; o SPA usa fallback para `index.html`
+
+### 1. Banco de dados PostgreSQL
+
+O Netlify **não** hospeda Postgres. Use um provedor gratuito/pago e copie a connection string:
+
+| Provedor | Dica |
+|----------|------|
+| [Neon](https://neon.tech) | Use a URL **pooled** (serverless) |
+| [Supabase](https://supabase.com) | Connection pooling (porta 6543) se disponível |
+| [Railway](https://railway.app) / [Aiven](https://aiven.io) | Postgres gerenciado |
+
+Aplique o schema no banco de produção (localmente, com a `DATABASE_URL` de prod):
+
+```bash
+# Na raiz do projeto, com DATABASE_URL apontando para o banco de produção:
+npx prisma db push
+# ou: npx prisma migrate deploy
+```
+
+### 2. Variáveis de ambiente no Netlify
+
+No painel: **Site configuration → Environment variables**:
+
+| Variável | Obrigatória | Valor |
+|----------|-------------|--------|
+| `DATABASE_URL` | Sim | Connection string Postgres (preferir pooling) |
+| `JWT_SECRET` | Sim | Segredo longo e aleatório |
+| `NODE_ENV` | Recomendado | `production` |
+| `CORS_ORIGIN` | Opcional | URL do site, ex. `https://seu-app.netlify.app` |
+| `VITE_API_URL` | Não (mesmo site) | Deixe vazio — o frontend usa `/api` em produção |
+
+> `VITE_*` precisa existir **no build**. Se um dia a API for outro domínio, defina `VITE_API_URL` antes do deploy.
+
+### 3. Conectar o repositório
+
+1. Faça push deste repositório para o GitHub/GitLab/Bitbucket.
+2. Em [app.netlify.com](https://app.netlify.com): **Add new site → Import an existing project**.
+3. Selecione o repositório.
+4. Confirme (o `netlify.toml` na raiz já define):
+   - **Build command:** `npm run netlify-build`
+   - **Publish directory:** `frontend/dist`
+   - **Functions directory:** `netlify/functions`
+5. Cadastre as variáveis de ambiente e clique em **Deploy**.
+
+### 4. Validar o deploy
+
+- Site: `https://SEU-SITE.netlify.app`
+- Health da API: `https://SEU-SITE.netlify.app/api/health` → `{ "status": "ok" }`
+- Login/cadastro pela interface
+
+### 5. Desenvolvimento local com Netlify CLI (opcional)
+
+```bash
+npm install -g netlify-cli
+# Com DATABASE_URL e JWT_SECRET no .env da raiz:
+netlify dev
+```
+
+Isso sobe frontend + functions com os redirects do `netlify.toml`.
+
+### Arquitetura do deploy
+
+```
+Browser
+  ├─ /*           → frontend/dist (SPA)
+  └─ /api/*       → Netlify Function (Express + Prisma)
+                         └─ PostgreSQL (Neon/Supabase/...)
+```
+
+---
+
 ## 📂 Organização do Repositório (Git Flow)
 
 Este repositório está estruturado na branch principal de desenvolvimento:
 *   **Branch Principal:** `dev` (sincronizada no GitHub)
-*   **Política de Git:** Todos os arquivos de ambiente local (`.env`), builds (`dist/`, `.next/`), banco de dados SQLite (`prisma/dev.db`) e pastas `node_modules` estão devidamente protegidos através do arquivo `.gitignore`.
+*   **Política de Git:** Arquivos de ambiente (`.env`), builds (`dist/`), bancos locais e `node_modules` estão no `.gitignore`. Use `.env.example` como referência.
 
 ---
 

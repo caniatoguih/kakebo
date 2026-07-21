@@ -11,10 +11,13 @@
     "test:watch": "vitest",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "vercel-build": "npm run prisma:generate && cd frontend && npm install && npm run build",
+    "netlify-build": "prisma generate && cd frontend && npm ci && npm run build",
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@netlify/functions": "^3.1.10",
     "@prisma/client": "^5.13.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -26,6 +29,7 @@
     "jsonwebtoken": "^9.0.2",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
+    "serverless-http": "^3.2.0",
     "uuid": "^14.0.0",
     "zod": "^3.23.6"
   },
