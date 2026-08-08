@@ -30,20 +30,20 @@ echo "Banco existente sem histórico de migrations; validando baseline..."
 set +e
 npx prisma migrate diff \
   --from-url "$DATABASE_URL" \
-  --to-schema-datamodel prisma/schema.prisma \
+  --to-schema-datamodel prisma/baseline.prisma \
   --exit-code
 diff_status=$?
 set -e
 
 case "$diff_status" in
   0)
-    echo "Schema do Neon corresponde ao schema Prisma; registrando baseline 0_init."
+    echo "Schema do Neon corresponde ao baseline anterior; registrando 0_init."
     npx prisma migrate resolve --applied 0_init
     npx prisma migrate deploy
     npx prisma migrate status
     ;;
   2)
-    echo "O schema do Neon diverge do schema Prisma. Baseline cancelado sem alterar o banco." >&2
+    echo "O schema do Neon diverge do baseline conhecido. Operação cancelada sem alterar o banco." >&2
     exit 2
     ;;
   *)

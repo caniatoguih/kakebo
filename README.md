@@ -123,8 +123,9 @@ frontend e E2E passarem em um push para a branch `main`. Cadastre em
 O workflow converte `DB_URL` em `DATABASE_URL` somente durante a migration,
 serializa execuções concorrentes e interrompe o deploy de banco quando o secret
 estiver ausente ou uma migration falhar. Na primeira execução contra um banco
-existente sem histórico do Prisma, ele compara o Neon ao `schema.prisma` e só
-registra a migration `0_init` como baseline quando não houver diferença. Netlify
+existente sem histórico do Prisma, ele compara o Neon ao snapshot
+`prisma/baseline.prisma` e só registra a migration `0_init` quando não houver
+diferença. Depois aplica, em ordem, as migrations incrementais pendentes. Netlify
 e Vercel continuam usando a
 variável `DATABASE_URL` configurada em cada plataforma para a aplicação em runtime;
 para esse uso serverless, prefira a URL pooled do Neon.
