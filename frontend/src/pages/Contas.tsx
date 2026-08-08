@@ -1,5 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { notify } from '@/components/FeedbackHost';
+import { ConfirmActionDialog } from '@/components/ConfirmActionDialog';
+import { QueryErrorState } from '@/components/QueryErrorState';
+import { EmptyState } from '@/components/EmptyState';
+import { AccountCardsSkeleton } from '@/components/AccountCardsSkeleton';
 import { contasService, type ContaData } from '@/services/contasService';
 import { NovaContaModal } from '@/components/Contas/NovaContaModal';
 import { PagarFaturaModal } from '@/components/Contas/PagarFaturaModal';
@@ -92,6 +98,7 @@ function ContaCard({ conta, onDelete }: { conta: ContaData; onDelete: (id: strin
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(saldo)}
           </p>
         )}
+        {conta.id && <Button asChild variant="link" className="mt-3 h-auto p-0"><Link to={`/transacoes?conta=${conta.id}&periodo=Todos`}>Ver lançamentos desta conta</Link></Button>}
       </CardContent>
     </Card>
   );
@@ -99,8 +106,9 @@ function ContaCard({ conta, onDelete }: { conta: ContaData; onDelete: (id: strin
 
 export function Contas(): React.ReactElement {
   const queryClient = useQueryClient();
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; nome: string } | null>(null);
 
-  const { data: contas = [], isLoading, isError } = useQuery<ContaData[]>({
+  const { data: contas = [], isLoading, isError, isFetching, error: queryError, refetch } = useQuery<ContaData[]>({
     queryKey: ['contas'],
     queryFn: contasService.listar,
   });
@@ -111,16 +119,16 @@ export function Contas(): React.ReactElement {
       queryClient.invalidateQueries({ queryKey: ['contas'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
+      setPendingDelete(null);
+      notify('Conta excluída com sucesso.', 'success');
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Erro ao excluir conta.');
+      notify(err.response?.data?.message || 'Erro ao excluir conta.');
     }
   });
 
   const handleDelete = (id: string, nome: string) => {
-    if (confirm(`Deseja realmente excluir a conta "${nome}"? Isso excluirá permanentemente todas as transações associadas a ela!`)) {
-      deleteMutation.mutate(id);
-    }
+    setPendingDelete({ id, nome });
   };
 
   const contasComuns = contas.filter(c => c.tipo !== 'CartaoCredito');
@@ -139,7 +147,7 @@ export function Contas(): React.ReactElement {
       </div>
 
       {/* Saldo Total */}
-      <Card className="bg-primary text-primary-foreground">
+      {!isLoading && !isError && <Card className="bg-primary text-primary-foreground">
         <CardContent className="flex items-center justify-between p-6">
           <div>
             <p className="text-sm font-medium opacity-80">Saldo Total em Contas</p>
@@ -149,10 +157,10 @@ export function Contas(): React.ReactElement {
           </div>
           <Wallet className="h-12 w-12 opacity-40" />
         </CardContent>
-      </Card>
+      </Card>}
 
-      {isLoading && <p className="text-muted-foreground text-center py-8">Carregando contas...</p>}
-      {isError && <p className="text-destructive text-center py-8">Erro ao carregar contas. Verifique a conexão.</p>}
+      {isLoading && <AccountCardsSkeleton />}
+      {isError && <QueryErrorState error={queryError} title="Erro ao carregar contas." retrying={isFetching} onRetry={() => refetch()} />}
 
       {/* Contas Bancárias */}
       {contasComuns.length > 0 && (
@@ -174,13 +182,17 @@ export function Contas(): React.ReactElement {
         </section>
       )}
 
-      {!isLoading && contas.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Wallet className="h-16 w-16 text-muted-foreground/30 mb-4" />
-          <p className="text-lg font-medium text-muted-foreground">Nenhuma conta cadastrada</p>
-          <p className="text-sm text-muted-foreground mt-1">Clique em "Nova Conta" para começar.</p>
-        </div>
-      )}
+      {!isLoading && !isError && contas.length === 0 && <EmptyState icon={Wallet} title="Cadastre sua primeira conta" description="Adicione uma conta bancária, carteira ou cartão para acompanhar saldos e registrar movimentações." action={<NovaContaModal />} />}
+      <ConfirmActionDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title="Excluir conta e movimentações?"
+        description={`A conta “${pendingDelete?.nome ?? ''}” será excluída permanentemente.`}
+        impact="Todas as transações, saldos e informações de fatura associados a esta conta também poderão ser removidos. Esta ação não pode ser desfeita."
+        confirmationText={pendingDelete?.nome}
+        pending={deleteMutation.isPending}
+        onConfirm={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
+      />
     </div>
   );
 }

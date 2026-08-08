@@ -31,6 +31,12 @@ export class TransacaoController {
     return res.json(result);
   };
 
+  pagarFatura = async (req: Request, res: Response) => {
+    const usuario_id = req.usuario_id!;
+    const result = await this.transacaoService.pagarFatura(usuario_id, req.body);
+    return res.status(201).json(result);
+  };
+
   toggleStatus = async (req: Request, res: Response) => {
     const usuario_id = req.usuario_id!;
     const { id } = req.params;
@@ -200,4 +206,3 @@ export class TransacaoController {
     }
   };
 }
-

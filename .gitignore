@@ -1,23 +1,58 @@
-# Dependency directories
+# Dependencies
 node_modules/
-**/node_modules/
+.pnpm-store/
 
-# Build outputs
+# Build outputs and framework state
 dist/
-**/dist/
 build/
-**/build/
 .next/
+.vite/
+.vercel/
+.netlify/
+*.tsbuildinfo
 
-# Environment files
+# Environment files and local secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
 **/.env
 **/.env.*
+!.env.example
 !**/.env.example
+*.pem
+*.key
+*.p12
+
+# Tests, coverage and generated evidence
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+/docs/ux-baseline/*.png
+
+# Logs and tool caches
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+logs/
+.cache/
+.eslintcache
+
+# Local databases and backups
+/backups/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+prisma/dev.db
+prisma/dev.db-journal
+
+# Local financial import files
+*.ofx
+*.csv
+!frontend/public/*.csv
 
 # IDEs and editors
 .idea/
@@ -28,27 +63,6 @@ build/
 *.sln
 *.sw?
 
-# OS files
+# Operating system files
 .DS_Store
 Thumbs.db
-
-# Databases and temporary files
-*.db
-*.db-journal
-*.sqlite
-*.sqlite-journal
-prisma/dev.db
-prisma/dev.db-journal
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-logs/
-*.log
-
-# Local test files
-*.ofx
-*.csv

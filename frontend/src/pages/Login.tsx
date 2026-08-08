@@ -8,6 +8,7 @@ import { authService } from '@/services/authService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormFieldError } from '@/components/FormFieldError';
 import { Label } from '@/components/ui/label';
 
 const loginSchema = z.object({
@@ -18,7 +19,11 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 export function Login() {
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState(() => {
+    const expired = sessionStorage.getItem('kakebo:session-expired') === 'true';
+    if (expired) sessionStorage.removeItem('kakebo:session-expired');
+    return expired ? 'Sua sessão expirou. Entre novamente para continuar.' : '';
+  });
   const { login } = useAuth();
   const navigate = useNavigate();
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
@@ -29,7 +34,7 @@ export function Login() {
     try {
       setErrorMsg('');
       const res = await authService.login(data);
-      login(res.token, res.usuario);
+      login(res.usuario);
       navigate('/dashboard');
     } catch (error: any) {
       setErrorMsg(error.response?.data?.message || 'Erro ao realizar login.');
@@ -45,16 +50,16 @@ export function Login() {
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
-            {errorMsg && <div className="p-3 bg-destructive/15 text-destructive text-sm rounded-md font-medium">{errorMsg}</div>}
+            {errorMsg && <div role="alert" className="p-3 bg-destructive/15 text-destructive text-sm rounded-md font-medium">{errorMsg}</div>}
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" placeholder="seu@email.com" {...register('email')} />
-              {errors.email && <span className="text-xs text-destructive font-medium">{errors.email.message}</span>}
+              <Input id="email" type="email" placeholder="seu@email.com" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'login-email-error' : undefined} {...register('email')} />
+              <FormFieldError id="login-email-error" message={errors.email?.message} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="senha">Senha</Label>
-              <Input id="senha" type="password" placeholder="••••••••" {...register('senha')} />
-              {errors.senha && <span className="text-xs text-destructive font-medium">{errors.senha.message}</span>}
+              <Input id="senha" type="password" placeholder="••••••••" aria-invalid={!!errors.senha} aria-describedby={errors.senha ? 'login-password-error' : undefined} {...register('senha')} />
+              <FormFieldError id="login-password-error" message={errors.senha?.message} />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">

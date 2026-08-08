@@ -5,7 +5,15 @@ import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Target, Wallet, Sparkles, BookOpen } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { QueryErrorState } from '@/components/QueryErrorState';
+import { EmptyState } from '@/components/EmptyState';
+import { SetupChecklist } from '@/components/SetupChecklist';
 import { relatoriosService, type PainelReflexaoData } from '@/services/relatoriosService';
+import { contasService } from '@/services/contasService';
+import { orcamentosService } from '@/services/orcamentosService';
+import { transacoesService } from '@/services/transacoesService';
+import { Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   BarChart,
   Bar,
@@ -21,6 +29,7 @@ import {
 const PILAR_CONFIG = {
   Sobrevivencia: {
     label: 'Sobrevivência',
+    description: 'Moradia, alimentação, saúde e necessidades essenciais.',
     icon: Wallet,
     color: 'from-emerald-50/50 to-emerald-100/30 border-emerald-200/60 dark:from-emerald-950/20 dark:to-emerald-950/10 dark:border-emerald-900/20',
     barColor: '#059669', // emerald-600
@@ -29,6 +38,7 @@ const PILAR_CONFIG = {
   },
   Lazer: {
     label: 'Lazer',
+    description: 'Diversão, passeios e experiências que trazem bem-estar.',
     icon: Sparkles,
     color: 'from-violet-50/50 to-violet-100/30 border-violet-200/60 dark:from-violet-950/20 dark:to-violet-950/10 dark:border-violet-900/20',
     barColor: '#7c3aed', // violet-600
@@ -37,6 +47,7 @@ const PILAR_CONFIG = {
   },
   Cultura: {
     label: 'Cultura',
+    description: 'Educação, livros e atividades para seu desenvolvimento.',
     icon: BookOpen,
     color: 'from-amber-50/50 to-amber-100/30 border-amber-200/60 dark:from-amber-950/20 dark:to-amber-950/10 dark:border-amber-900/20',
     barColor: '#d97706', // amber-600
@@ -45,6 +56,7 @@ const PILAR_CONFIG = {
   },
   Extras: {
     label: 'Extras / Imprevistos',
+    description: 'Gastos inesperados e despesas fora da rotina.',
     icon: TrendingUp,
     color: 'from-rose-50/50 to-rose-100/30 border-rose-200/60 dark:from-rose-950/20 dark:to-rose-950/10 dark:border-rose-900/20',
     barColor: '#e11d48', // rose-600
@@ -79,22 +91,30 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export function Dashboard(): React.ReactElement {
+  const { usuario } = useAuth();
   const today = new Date();
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
 
   const mes = currentDate.getMonth() + 1;
   const ano = currentDate.getFullYear();
 
-  const { data, isLoading, isError } = useQuery<PainelReflexaoData>({
+  const { data, isLoading, isError, isFetching, error: queryError, refetch } = useQuery<PainelReflexaoData>({
     queryKey: ['relatorio-reflexao', mes, ano],
     queryFn: () => relatoriosService.getPainelReflexao(mes, ano),
   });
+  const accountsSetupQuery = useQuery({ queryKey: ['contas'], queryFn: contasService.listar });
+  const budgetsSetupQuery = useQuery({ queryKey: ['orcamentos', mes, ano], queryFn: () => orcamentosService.listar(mes, ano) });
+  const transactionsSetupQuery = useQuery({ queryKey: ['transacoes', 'setup'], queryFn: () => transacoesService.listar({ page: 1, limit: 1 }) });
+  const setupReady = [accountsSetupQuery, budgetsSetupQuery, transactionsSetupQuery].every((query) => !query.isLoading && !query.isError);
+  const categoriesReviewed = !!usuario && localStorage.getItem(`kakebo:categories-reviewed:${usuario.id}`) === 'true';
 
   const prevMonth = () => setCurrentDate(new Date(ano, mes - 2, 1));
   const nextMonth = () => setCurrentDate(new Date(ano, mes, 1));
 
   const mesLabel = format(currentDate, 'MMMM yyyy', { locale: ptBR });
   const mesCapitalized = mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1);
+  const monthContext = `${ano}-${String(mes).padStart(2, '0')}`;
+  const hasMonthlyData = !!data && (data.resumo.total_orcado !== 0 || data.resumo.total_realizado !== 0);
 
   // Formatar dados para o gráfico principal
   const chartData = useMemo(() => {
@@ -131,17 +151,20 @@ export function Dashboard(): React.ReactElement {
         </div>
       </div>
 
+      {setupReady && <SetupChecklist
+        hasAccount={(accountsSetupQuery.data?.length ?? 0) > 0}
+        hasCategory={categoriesReviewed}
+        hasBudget={(budgetsSetupQuery.data?.length ?? 0) > 0}
+        hasTransaction={(transactionsSetupQuery.data?.total ?? 0) > 0}
+      />}
+
       {isLoading && (
         <div className="flex items-center justify-center h-64 text-muted-foreground">
           Carregando reflexões...
         </div>
       )}
 
-      {isError && (
-        <div className="flex items-center justify-center h-64 text-destructive bg-destructive/10 rounded-lg">
-          Erro ao carregar o painel. Verifique sua conexão.
-        </div>
-      )}
+      {isError && <QueryErrorState error={queryError} title="Erro ao carregar o painel." retrying={isFetching} onRetry={() => refetch()} className="min-h-64" />}
 
       {!isLoading && !isError && data && (
         <>
@@ -157,6 +180,7 @@ export function Dashboard(): React.ReactElement {
               <CardContent>
                 <div className="text-3xl font-bold">{brl(data.resumo.total_orcado)}</div>
                 <p className="text-xs text-muted-foreground mt-1">O que você planejou gastar.</p>
+                <Button asChild variant="link" className="mt-2 h-auto p-0"><Link to={`/planejamento?mes=${monthContext}`}>Ver planejamento</Link></Button>
               </CardContent>
             </Card>
 
@@ -172,6 +196,7 @@ export function Dashboard(): React.ReactElement {
                   {brl(data.resumo.total_realizado)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">O que realmente saiu do bolso.</p>
+                <Button asChild variant="link" className="mt-2 h-auto p-0"><Link to={`/transacoes?periodo=Mes&mes=${monthContext}`}>Ver lançamentos do mês</Link></Button>
               </CardContent>
             </Card>
 
@@ -198,14 +223,19 @@ export function Dashboard(): React.ReactElement {
           </div>
 
           {/* Gráfico Principal */}
-          <Card className="border-border">
+          {hasMonthlyData ? <Card className="min-w-0 border-border">
             <CardHeader>
               <CardTitle>Orçado × Realizado por Pilar</CardTitle>
               <CardDescription>Comparativo visual de como seu orçamento foi distribuído e consumido.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[350px] w-full mt-4">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="mt-4 h-[350px] min-w-0 w-full">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={0}
+                  initialDimension={{ width: 800, height: 350 }}
+                >
                   <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
                     <XAxis 
@@ -238,7 +268,7 @@ export function Dashboard(): React.ReactElement {
                 </ResponsiveContainer>
               </div>
             </CardContent>
-          </Card>
+          </Card> : <EmptyState icon={Target} title="Ainda não há dados para comparar neste mês" description="Crie um orçamento e registre movimentações para visualizar o comparativo entre o planejado e o realizado." action={<><Button asChild variant="outline"><Link to="/planejamento">Planejar o mês</Link></Button><Button asChild><Link to="/transacoes">Registrar movimentação</Link></Button></>} />}
 
           {/* Detalhamento dos Pilares */}
           <div className="space-y-4">
@@ -264,6 +294,7 @@ export function Dashboard(): React.ReactElement {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3 pb-4">
+                      <p className="text-xs text-muted-foreground">{config.description}</p>
                       <div>
                         <div className="flex justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
                           <span>{brl(pData?.realizado || 0)} realizado</span>

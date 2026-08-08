@@ -1,10 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link, useSearchParams } from 'react-router-dom';
 import { orcamentosService, type OrcamentoItem } from '@/services/orcamentosService';
 import { NovoOrcamentoModal } from '@/components/Planejamento/NovoOrcamentoModal';
 import { DesenharOrcamentoModal } from '@/components/Planejamento/DesenharOrcamentoModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { QueryErrorState } from '@/components/QueryErrorState';
+import { ContentGridSkeleton } from '@/components/ContentGridSkeleton';
 import { ChevronLeft, ChevronRight, Trash2, TrendingUp, Wallet, BookOpen, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -159,6 +162,7 @@ function PilarCard({ pilar, items, mes, ano, onDelete, isDeleting }: PilarCardPr
                   <span className="text-slate-400 dark:text-slate-500 font-medium">{brl(item.valor_orcado)}</span>
                 </div>
               </div>
+              <Button asChild variant="link" className="h-auto p-0 text-xs"><Link to={`/transacoes?periodo=Mes&mes=${ano}-${String(mes).padStart(2, '0')}&subcategoria=${item.subcategoria_id}`}>Ver despesas desta categoria</Link></Button>
             </div>
           );
         })}
@@ -178,13 +182,17 @@ function PilarCard({ pilar, items, mes, ano, onDelete, isDeleting }: PilarCardPr
 // ──────────────────────────────────────────────
 export function Planejamento(): React.ReactElement {
   const today = new Date();
-  const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [searchParams, setSearchParams] = useSearchParams();
+  const monthParam = searchParams.get('mes');
+  const validMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam ?? '');
+  const [selectedYear, selectedMonth] = validMonth ? monthParam!.split('-').map(Number) : [today.getFullYear(), today.getMonth() + 1];
+  const currentDate = new Date(selectedYear, selectedMonth - 1, 1);
   const queryClient = useQueryClient();
 
   const mes = currentDate.getMonth() + 1;
   const ano = currentDate.getFullYear();
 
-  const { data: orcamentos = [], isLoading, isError } = useQuery<OrcamentoItem[]>({
+  const { data: orcamentos = [], isLoading, isError, isFetching, error: queryError, refetch } = useQuery<OrcamentoItem[]>({
     queryKey: ['orcamentos', mes, ano],
     queryFn: () => orcamentosService.listar(mes, ano),
   });
@@ -210,8 +218,13 @@ export function Planejamento(): React.ReactElement {
   const totalRealizado = orcamentos.reduce((s, o) => s + o.valor_realizado, 0);
   const saldo = totalOrcado - totalRealizado;
 
-  const prevMonth = () => setCurrentDate(new Date(ano, mes - 2, 1));
-  const nextMonth = () => setCurrentDate(new Date(ano, mes, 1));
+  const navigateMonth = (date: Date) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('mes', `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+    setSearchParams(next, { replace: true });
+  };
+  const prevMonth = () => navigateMonth(new Date(ano, mes - 2, 1));
+  const nextMonth = () => navigateMonth(new Date(ano, mes, 1));
 
   const mesLabel = format(currentDate, 'MMMM yyyy', { locale: ptBR });
   const mesCapitalized = mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1);
@@ -271,16 +284,8 @@ export function Planejamento(): React.ReactElement {
       )}
 
       {/* Estados de carregamento / erro / vazio */}
-      {isLoading && (
-        <div className="flex items-center justify-center h-48 text-muted-foreground">
-          Carregando orçamentos...
-        </div>
-      )}
-      {isError && (
-        <div className="flex items-center justify-center h-48 text-destructive">
-          Erro ao carregar. Verifique sua conexão / token JWT.
-        </div>
-      )}
+      {isLoading && <ContentGridSkeleton />}
+      {isError && <QueryErrorState error={queryError} title="Erro ao carregar o planejamento." retrying={isFetching} onRetry={() => refetch()} className="min-h-48" />}
       {!isLoading && !isError && orcamentos.length === 0 && (
         <Card className="border-dashed border-2 border-border">
           <CardContent className="flex flex-col items-center justify-center gap-3 py-16">

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { notify } from '@/components/FeedbackHost';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -71,7 +72,7 @@ interface QueuedFile {
   ofxText: string;
 }
 
-export function SincronizarOFXModal(): React.ReactElement {
+export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } = {}): React.ReactElement {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1); // 1: Upload Queue, 2: Resultado
   const [filesQueue, setFilesQueue] = useState<QueuedFile[]>([]);
@@ -111,7 +112,10 @@ export function SincronizarOFXModal(): React.ReactElement {
     enabled: open && step === 2,
   });
 
-  const todasTransacoes = transacoesResponse?.transacoes || [];
+  const todasTransacoes = useMemo(
+    () => transacoesResponse?.transacoes ?? [],
+    [transacoesResponse?.transacoes],
+  );
 
   // Lista plana de subcategorias com o tipo da categoria pai
   const subcategoriasList = useMemo(() => {
@@ -232,7 +236,10 @@ export function SincronizarOFXModal(): React.ReactElement {
       setSelectedSubcategories(newSubs);
       setSelectedDestinationAccounts(newDests);
     }
-  }, [step, localNaoEncontradas, todasTransacoes, contas, subcategoriasList]);
+  }, [
+    step, localNaoEncontradas, todasTransacoes, contas, subcategoriasList,
+    selectedDestinationAccounts, selectedSubcategories, transactionTypes,
+  ]);
 
   // Mutação em lote do Docker/Backend
   const reconcileBatchMutation = useMutation({
@@ -250,7 +257,7 @@ export function SincronizarOFXModal(): React.ReactElement {
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Erro ao sincronizar extratos OFX.');
+      notify(err.response?.data?.message || 'Erro ao sincronizar extratos OFX.');
     }
   });
 
@@ -268,7 +275,7 @@ export function SincronizarOFXModal(): React.ReactElement {
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Erro ao lançar transação.');
+      notify(err.response?.data?.message || 'Erro ao lançar transação.');
     }
   });
 
@@ -310,13 +317,13 @@ export function SincronizarOFXModal(): React.ReactElement {
 
   const handleSyncSubmit = () => {
     if (filesQueue.length === 0) {
-      alert('Adicione pelo menos um arquivo OFX.');
+      notify('Adicione pelo menos um arquivo OFX.');
       return;
     }
 
     const hasUnmapped = filesQueue.some(item => !item.contaId);
     if (hasUnmapped) {
-      alert('Associe todos os arquivos a uma conta bancária antes de prosseguir.');
+      notify('Associe todos os arquivos a uma conta bancária antes de prosseguir.');
       return;
     }
 
@@ -334,7 +341,7 @@ export function SincronizarOFXModal(): React.ReactElement {
     const currentType = transactionTypes[itemKey] || item.tipo;
 
     if (!desc.trim()) {
-      alert('A descrição não pode ficar vazia.');
+      notify('A descrição não pode ficar vazia.');
       return;
     }
 
@@ -343,11 +350,11 @@ export function SincronizarOFXModal(): React.ReactElement {
       const destAccountId = selectedDestinationAccounts[itemKey];
       
       if (!destAccountId) {
-        alert(isCredit ? 'Selecione a conta de origem para a transferência.' : 'Selecione a conta de destino para a transferência.');
+        notify(isCredit ? 'Selecione a conta de origem para a transferência.' : 'Selecione a conta de destino para a transferência.');
         return;
       }
       if (destAccountId === item.conta_id) {
-        alert(isCredit ? 'A conta de origem não pode ser igual à conta de destino.' : 'A conta de destino não pode ser igual à conta de origem.');
+        notify(isCredit ? 'A conta de origem não pode ser igual à conta de destino.' : 'A conta de destino não pode ser igual à conta de origem.');
         return;
       }
 
@@ -390,7 +397,7 @@ export function SincronizarOFXModal(): React.ReactElement {
       const subId = selectedSubcategories[itemKey] || subcategoriasList.find(sub => sub.categoriaTipo === currentType)?.id;
 
       if (!subId) {
-        alert('Selecione uma subcategoria compatível antes de lançar.');
+        notify('Selecione uma subcategoria compatível antes de lançar.');
         return;
       }
 
@@ -510,8 +517,8 @@ export function SincronizarOFXModal(): React.ReactElement {
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['contas'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
-    } catch (err) {
-      alert("Erro ao lançar todas as transferências.");
+    } catch {
+      notify("Erro ao lançar todas as transferências.");
     } finally {
       setIsBulkLaunching(false);
     }
@@ -577,10 +584,10 @@ export function SincronizarOFXModal(): React.ReactElement {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2 border-emerald-500/30 hover:border-emerald-500/60 dark:hover:bg-emerald-500/10 font-medium">
+        {trigger ?? <Button variant="outline" className="gap-2 border-emerald-500/30 hover:border-emerald-500/60 dark:hover:bg-emerald-500/10 font-medium">
           <RefreshCw className="h-4 w-4 text-emerald-500" />
           Sincronizar OFX
-        </Button>
+        </Button>}
       </DialogTrigger>
 
       <DialogContent className={`border-border flex flex-col transition-all duration-300 ${step === 2 ? 'sm:max-w-[1000px] h-[85vh]' : 'sm:max-w-[550px]'}`}>

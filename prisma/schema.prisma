@@ -9,106 +9,244 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TipoConta {
+  Corrente
+  Poupanca
+  Dinheiro
+  CartaoCredito
+}
+
+enum PilarCategoria {
+  Sobrevivencia
+  Lazer
+  Cultura
+  Extras
+}
+
+enum TipoLancamento {
+  Receita
+  Despesa
+  Transferencia
+}
+
+enum StatusTransacao {
+  Pendente
+  Pago
+}
+
+enum StatusFatura {
+  Aberta
+  Fechada
+  ParcialmentePaga
+  Paga
+  Vencida
+}
+
+enum DirecaoTransferencia {
+  Entrada
+  Saida
+}
+
 model Usuario {
-  id           String          @id @default(uuid())
+  id           String   @id @default(uuid())
   nome         String
-  email        String          @unique
+  email        String   @unique
   senha_hash   String
-  data_criacao DateTime        @default(now())
-  
-  contas       ContaBancaria[]
-  categorias   Categoria[]
-  orcamentos   Orcamento[]
-  transacoes   Transacao[]
+  data_criacao DateTime @default(now())
+
+  contas                 ContaBancaria[]
+  categorias             Categoria[]
+  orcamentos             Orcamento[]
+  transacoes             Transacao[]
+  faturas_cartao         FaturaCartao[]
+  pagamentos_fatura      PagamentoFatura[]
+  transferencias_grupo   TransferenciaGrupo[]
+  auditorias_financeiras AuditoriaFinanceira[]
 
   @@map("usuarios")
 }
 
 model ContaBancaria {
-  id             String                @id @default(uuid())
-  usuario_id     String
-  nome           String
-  tipo           String                // Corrente, Poupanca, Dinheiro, CartaoCredito
-  saldo_inicial  Decimal               @db.Decimal(10, 2)
-  saldo_atual    Decimal               @db.Decimal(10, 2)
-  
-  usuario        Usuario               @relation(fields: [usuario_id], references: [id])
-  cartao_detalhe CartaoCreditoDetalhe?
-  transacoes_origem  Transacao[]       @relation("ContaOrigem")
+  id            String    @id @default(uuid())
+  usuario_id    String
+  nome          String
+  tipo          TipoConta
+  saldo_inicial Decimal   @db.Decimal(10, 2)
+  saldo_atual   Decimal   @db.Decimal(10, 2)
 
+  usuario           Usuario                @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  cartao_detalhe    CartaoCreditoDetalhe?
+  cartoes_pagamento CartaoCreditoDetalhe[] @relation("ContaPagamentoPadrao")
+  transacoes_origem Transacao[]            @relation("ContaOrigem")
+  faturas_cartao    FaturaCartao[]
+
+  @@index([usuario_id, tipo])
+  @@index([usuario_id, nome])
   @@map("contas_bancarias")
 }
 
 model CartaoCreditoDetalhe {
-  id                        String        @id @default(uuid())
-  conta_id                  String        @unique
-  limite_total              Decimal       @db.Decimal(10, 2)
+  id                        String  @id @default(uuid())
+  conta_id                  String  @unique
+  limite_total              Decimal @db.Decimal(10, 2)
   dia_fechamento            Int
   dia_vencimento            Int
-  conta_pagamento_padrao_id String?       // Conta bancária padrão para pagar a fatura
+  conta_pagamento_padrao_id String? // Conta bancária padrão para pagar a fatura
 
-  conta                     ContaBancaria @relation(fields: [conta_id], references: [id])
+  conta           ContaBancaria  @relation(fields: [conta_id], references: [id], onDelete: Cascade)
+  conta_pagamento ContaBancaria? @relation("ContaPagamentoPadrao", fields: [conta_pagamento_padrao_id], references: [id], onDelete: SetNull)
 
   @@map("cartoes_credito_detalhes")
 }
 
 model Categoria {
-  id            String         @id @default(uuid())
-  usuario_id    String
-  nome          String
-  pilar         String         // Sobrevivencia, Lazer, Cultura, Extras
-  tipo          String         // Receita, Despesa
-  
-  usuario       Usuario        @relation(fields: [usuario_id], references: [id])
+  id         String         @id @default(uuid())
+  usuario_id String
+  nome       String
+  pilar      PilarCategoria
+  tipo       TipoLancamento
+
+  usuario       Usuario        @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
   subcategorias Subcategoria[]
 
+  @@index([usuario_id, tipo])
   @@map("categorias")
 }
 
 model Subcategoria {
-  id           String      @id @default(uuid())
+  id           String @id @default(uuid())
   categoria_id String
   nome         String
 
-  categoria    Categoria   @relation(fields: [categoria_id], references: [id])
-  orcamentos   Orcamento[]
-  transacoes   Transacao[]
+  categoria  Categoria   @relation(fields: [categoria_id], references: [id], onDelete: Cascade)
+  orcamentos Orcamento[]
+  transacoes Transacao[]
 
+  @@index([categoria_id])
   @@map("subcategorias")
 }
 
 model Orcamento {
-  id              String       @id @default(uuid())
+  id              String  @id @default(uuid())
   usuario_id      String
   subcategoria_id String
   mes             Int
   ano             Int
-  valor_orcado    Decimal      @db.Decimal(10, 2)
+  valor_orcado    Decimal @db.Decimal(10, 2)
 
-  usuario         Usuario      @relation(fields: [usuario_id], references: [id])
-  subcategoria    Subcategoria @relation(fields: [subcategoria_id], references: [id])
+  usuario      Usuario      @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  subcategoria Subcategoria @relation(fields: [subcategoria_id], references: [id], onDelete: Cascade)
 
+  @@unique([usuario_id, subcategoria_id, mes, ano])
+  @@index([usuario_id, ano, mes])
   @@map("orcamentos")
 }
 
 model Transacao {
-  id               String        @id @default(uuid())
-  usuario_id       String
-  conta_id         String
-  subcategoria_id  String?
-  descricao        String
-  valor            Decimal       @db.Decimal(10, 2)
-  tipo             String        // Receita, Despesa, Transferencia
-  data_transacao   DateTime
-  status           String        // Pendente, Pago
-  parcela_atual    Int           @default(1)
-  total_parcelas   Int           @default(1)
-  transacao_pai_id String?       // Para agrupar compras parceladas
-  recorrente       Boolean       @default(false) // Para identificar compras recorrentes / assinaturas
+  id                     String                @id @default(uuid())
+  usuario_id             String
+  conta_id               String
+  subcategoria_id        String?
+  descricao              String
+  valor                  Decimal               @db.Decimal(10, 2)
+  tipo                   TipoLancamento
+  data_transacao         DateTime
+  status                 StatusTransacao
+  parcela_atual          Int                   @default(1)
+  total_parcelas         Int                   @default(1)
+  transacao_pai_id       String? // Para agrupar compras parceladas
+  recorrente             Boolean               @default(false) // Para identificar compras recorrentes / assinaturas
+  fatura_id              String?
+  transferencia_grupo_id String?
+  transferencia_direcao  DirecaoTransferencia?
 
-  usuario          Usuario       @relation(fields: [usuario_id], references: [id])
-  conta            ContaBancaria @relation("ContaOrigem", fields: [conta_id], references: [id])
-  subcategoria     Subcategoria? @relation(fields: [subcategoria_id], references: [id])
+  usuario                  Usuario             @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  conta                    ContaBancaria       @relation("ContaOrigem", fields: [conta_id], references: [id], onDelete: Cascade)
+  subcategoria             Subcategoria?       @relation(fields: [subcategoria_id], references: [id], onDelete: SetNull)
+  fatura                   FaturaCartao?       @relation(fields: [fatura_id], references: [id], onDelete: SetNull)
+  transferencia_grupo      TransferenciaGrupo? @relation(fields: [transferencia_grupo_id], references: [id], onDelete: SetNull)
+  pagamento_fatura_saida   PagamentoFatura?    @relation("PagamentoFaturaSaida")
+  pagamento_fatura_entrada PagamentoFatura?    @relation("PagamentoFaturaEntrada")
 
+  @@index([fatura_id])
+  @@index([transferencia_grupo_id])
+  @@index([usuario_id, data_transacao])
+  @@index([usuario_id, conta_id, data_transacao])
+  @@index([usuario_id, status, data_transacao])
+  @@index([transacao_pai_id])
   @@map("transacoes")
+}
+
+model FaturaCartao {
+  id              String       @id @default(uuid())
+  usuario_id      String
+  cartao_id       String
+  competencia     String
+  data_inicio     DateTime
+  data_fim        DateTime
+  data_fechamento DateTime
+  data_vencimento DateTime
+  status          StatusFatura @default(Aberta)
+  total           Decimal      @default(0) @db.Decimal(10, 2)
+  total_pago      Decimal      @default(0) @db.Decimal(10, 2)
+  data_criacao    DateTime     @default(now())
+
+  usuario    Usuario           @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  cartao     ContaBancaria     @relation(fields: [cartao_id], references: [id], onDelete: Cascade)
+  transacoes Transacao[]
+  pagamentos PagamentoFatura[]
+
+  @@unique([cartao_id, competencia])
+  @@index([usuario_id, status])
+  @@map("faturas_cartao")
+}
+
+model PagamentoFatura {
+  id                   String   @id @default(uuid())
+  usuario_id           String
+  fatura_id            String
+  valor                Decimal  @db.Decimal(10, 2)
+  data_pagamento       DateTime
+  transacao_saida_id   String?  @unique
+  transacao_entrada_id String?  @unique
+  data_criacao         DateTime @default(now())
+
+  usuario           Usuario      @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  fatura            FaturaCartao @relation(fields: [fatura_id], references: [id], onDelete: Cascade)
+  transacao_saida   Transacao?   @relation("PagamentoFaturaSaida", fields: [transacao_saida_id], references: [id])
+  transacao_entrada Transacao?   @relation("PagamentoFaturaEntrada", fields: [transacao_entrada_id], references: [id])
+
+  @@index([fatura_id, data_pagamento])
+  @@map("pagamentos_fatura")
+}
+
+model TransferenciaGrupo {
+  id           String   @id @default(uuid())
+  usuario_id   String
+  descricao    String?
+  data_criacao DateTime @default(now())
+
+  usuario    Usuario     @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  transacoes Transacao[]
+
+  @@index([usuario_id])
+  @@map("transferencias_grupo")
+}
+
+model AuditoriaFinanceira {
+  id           String   @id @default(uuid())
+  usuario_id   String?
+  request_id   String?
+  acao         String
+  entidade     String
+  entidade_id  String?
+  dados        Json?
+  data_criacao DateTime @default(now())
+
+  usuario Usuario? @relation(fields: [usuario_id], references: [id], onDelete: SetNull)
+
+  @@index([usuario_id, data_criacao])
+  @@index([entidade, entidade_id])
+  @@index([request_id])
+  @@map("auditorias_financeiras")
 }

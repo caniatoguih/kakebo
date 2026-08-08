@@ -1,29 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
-
-function getPaymentMonthAndYear(dataTransacao: Date, diaFechamento: number): { month: number; year: number } {
-  const d = new Date(dataTransacao);
-  const day = d.getUTCDate();
-  let year = d.getUTCFullYear();
-  let month = d.getUTCMonth(); // 0-indexed
-
-  if (day >= diaFechamento) {
-    month += 1;
-    if (month > 11) {
-      month = 0;
-      year += 1;
-    }
-  }
-
-  // O pagamento ocorre sempre no mês seguinte (+1 mês)
-  month += 1;
-  if (month > 11) {
-    month = 0;
-    year += 1;
-  }
-
-  return { month, year };
-}
+import { assertSubcategoryOwnership } from '../services/OwnershipService';
 
 export class OrcamentoController {
   list = async (req: Request, res: Response) => {
@@ -49,6 +26,8 @@ export class OrcamentoController {
       const allSubcatIds = orcamentos
         .map((o) => o.subcategoria_id)
         .filter((id): id is string => id !== null);
+      const start = new Date(Date.UTC(ano, mes - 1, 1));
+      const end = new Date(Date.UTC(ano, mes, 1));
 
       // Busca todas as transações Pago de Despesa do usuário que têm subcategoria correspondente
       const transacoes = await prisma.transacao.findMany({
@@ -56,43 +35,31 @@ export class OrcamentoController {
           usuario_id,
           status: 'Pago',
           tipo: 'Despesa',
-          subcategoria_id: { in: allSubcatIds }
+          subcategoria_id: { in: allSubcatIds },
+          OR: [
+            {
+              conta: { tipo: { not: 'CartaoCredito' } },
+              data_transacao: { gte: start, lt: end },
+            },
+            {
+              conta: { tipo: 'CartaoCredito' },
+              fatura: { data_vencimento: { gte: start, lt: end } },
+            },
+            {
+              conta: { tipo: 'CartaoCredito' },
+              fatura_id: null,
+              data_transacao: { gte: start, lt: end },
+            },
+          ],
         },
-        include: {
-          conta: {
-            include: {
-              cartao_detalhe: true
-            }
-          }
-        }
       });
 
       const realizadoMap = new Map<string, number>();
-      const targetMonthIndex = mes - 1; // 0-indexed
 
       for (const t of transacoes) {
         if (!t.subcategoria_id) continue;
-
-        let pertenceAoMes = false;
-        if (t.conta?.tipo === 'CartaoCredito' && t.conta.cartao_detalhe) {
-          const diaFechamento = t.conta.cartao_detalhe.dia_fechamento;
-          const { month, year } = getPaymentMonthAndYear(t.data_transacao, diaFechamento);
-          if (month === targetMonthIndex && year === ano) {
-            pertenceAoMes = true;
-          }
-        } else {
-          const d = new Date(t.data_transacao);
-          const tMes = d.getUTCMonth();
-          const tAno = d.getUTCFullYear();
-          if (tMes === targetMonthIndex && tAno === ano) {
-            pertenceAoMes = true;
-          }
-        }
-
-        if (pertenceAoMes) {
-          const valor = Number(t.valor);
-          realizadoMap.set(t.subcategoria_id, (realizadoMap.get(t.subcategoria_id) || 0) + valor);
-        }
+        const valor = Number(t.valor);
+        realizadoMap.set(t.subcategoria_id, (realizadoMap.get(t.subcategoria_id) || 0) + valor);
       }
 
       const result = orcamentos.map((o) => ({
@@ -123,44 +90,17 @@ export class OrcamentoController {
     }
 
     try {
-      const orcamento = await prisma.orcamento.upsert({
+      await assertSubcategoryOwnership(subcategoria_id, usuario_id);
+      const saved = await prisma.orcamento.upsert({
         where: {
-          // Composite unique não está no schema ainda; usamos findFirst + create/update
-          // Workaround: usar um id fictício que nunca vai existir para forçar create
-          id: 'nonexistent',
+          usuario_id_subcategoria_id_mes_ano: { usuario_id, subcategoria_id, mes, ano },
         },
-        update: {},
-        create: {
-          usuario_id,
-          subcategoria_id,
-          mes,
-          ano,
-          valor_orcado,
-        },
+        update: { valor_orcado },
+        create: { usuario_id, subcategoria_id, mes, ano, valor_orcado },
       });
-      return res.status(201).json(orcamento);
-    } catch {
-      // Fallback: findFirst + create ou update manual
-      try {
-        const existing = await prisma.orcamento.findFirst({
-          where: { usuario_id, subcategoria_id, mes, ano },
-        });
-
-        if (existing) {
-          const updated = await prisma.orcamento.update({
-            where: { id: existing.id },
-            data: { valor_orcado },
-          });
-          return res.json(updated);
-        }
-
-        const created = await prisma.orcamento.create({
-          data: { usuario_id, subcategoria_id, mes, ano, valor_orcado },
-        });
-        return res.status(201).json(created);
-      } catch (error: any) {
-        return res.status(400).json({ message: 'Erro ao salvar orçamento', error: error.message });
-      }
+      return res.json(saved);
+    } catch (error: any) {
+      return res.status(400).json({ message: 'Erro ao salvar orçamento', error: error.message });
     }
   };
 
@@ -189,30 +129,23 @@ export class OrcamentoController {
     }
 
     try {
-      const results = [];
-      for (const item of items) {
-        const { subcategoria_id, mes, ano, valor_orcado } = item;
-        if (!subcategoria_id || !mes || !ano || valor_orcado === undefined) {
-          continue;
-        }
-
-        const existing = await prisma.orcamento.findFirst({
-          where: { usuario_id, subcategoria_id, mes, ano },
-        });
-
-        if (existing) {
-          const updated = await prisma.orcamento.update({
-            where: { id: existing.id },
-            data: { valor_orcado },
-          });
-          results.push(updated);
-        } else {
-          const created = await prisma.orcamento.create({
-            data: { usuario_id, subcategoria_id, mes, ano, valor_orcado },
-          });
-          results.push(created);
-        }
+      const subcategoriasIds = [...new Set(items.map((item: any) => item.subcategoria_id))] as string[];
+      for (const subcategoriaId of subcategoriasIds) {
+        await assertSubcategoryOwnership(subcategoriaId, usuario_id);
       }
+      const validItems = items.filter((item: any) =>
+        item.subcategoria_id && item.mes && item.ano && item.valor_orcado !== undefined,
+      );
+      const results = await prisma.$transaction(validItems.map((item: any) => {
+        const { subcategoria_id, mes, ano, valor_orcado } = item;
+        return prisma.orcamento.upsert({
+          where: {
+            usuario_id_subcategoria_id_mes_ano: { usuario_id, subcategoria_id, mes, ano },
+          },
+          update: { valor_orcado },
+          create: { usuario_id, subcategoria_id, mes, ano, valor_orcado },
+        });
+      }));
       return res.status(200).json(results);
     } catch (error: any) {
       return res.status(500).json({ message: 'Erro ao salvar orçamentos em lote', error: error.message });

@@ -1,10 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { notify } from '@/components/FeedbackHost';
+import { QueryErrorState } from '@/components/QueryErrorState';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -13,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { transacoesService, type TransacaoData } from '@/services/transacoesService';
 import { orcamentosService, type OrcamentoPayload } from '@/services/orcamentosService';
 import { categoriasService } from '@/services/categoriasService';
-import { Sparkles, TrendingUp, TrendingDown, Wallet, Check, AlertCircle, Calendar } from 'lucide-react';
+import { Sparkles, TrendingUp, TrendingDown, Wallet, Check, Calendar } from 'lucide-react';
 
 interface Props {
   mes: number;
@@ -45,13 +48,16 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
   });
 
   // Busca as transações previstas/realizadas do mês selecionado
-  const { data: transacoesResponse, isLoading, isError } = useQuery({
+  const { data: transacoesResponse, isLoading, isError, isFetching, error: queryError, refetch } = useQuery({
     queryKey: ['transacoes-planejamento-forecast', mes, ano],
     queryFn: () => transacoesService.listar({ mes, ano, limit: 1000 }),
     enabled: open,
   });
 
-  const transacoes: TransacaoData[] = transacoesResponse?.transacoes || [];
+  const transacoes: TransacaoData[] = useMemo(
+    () => transacoesResponse?.transacoes ?? [],
+    [transacoesResponse?.transacoes],
+  );
 
   // Mapeamento plano de subcategorias
   const subcategoriasMap = useMemo(() => {
@@ -134,7 +140,7 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
       setOpen(false);
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Erro ao gerar o orçamento em lote.');
+      notify(err.response?.data?.message || 'Erro ao gerar o orçamento em lote.');
     },
   });
 
@@ -161,7 +167,7 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
       }));
 
     if (itemsParaSalvar.length === 0) {
-      alert('Nenhum item com valor válido selecionado.');
+      notify('Nenhum item com valor válido selecionado.');
       return;
     }
 
@@ -186,9 +192,9 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
             <Sparkles className="h-5 w-5 text-emerald-500" />
             Desenhar Orçamento do Fluxo de Caixa
           </DialogTitle>
-          <p className="text-xs text-muted-foreground">
+          <DialogDescription className="text-xs text-muted-foreground">
             Compare suas previsões de receitas e gastos para o período selecionado e desenhe seu orçamento automaticamente.
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         {/* Corpo com Scroll */}
@@ -200,12 +206,7 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
             </div>
           )}
 
-          {isError && (
-            <div className="flex items-center justify-center py-12 text-sm text-red-500 gap-2">
-              <AlertCircle className="h-5 w-5" />
-              Erro ao carregar dados do fluxo de caixa.
-            </div>
-          )}
+          {isError && <QueryErrorState error={queryError} title="Erro ao carregar dados do fluxo de caixa." retrying={isFetching} onRetry={() => refetch()} />}
 
           {!isLoading && !isError && transacoes.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-slate-400 gap-3 border border-dashed rounded-2xl bg-muted/20">

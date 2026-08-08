@@ -17,7 +17,7 @@ export const errorHandler = (
 
   // Handle other types of custom errors (e.g., AppError) here if needed
 
-  logger.error(err);
+  logger.error({ err, requestId: req.id, method: req.method, path: req.path, usuarioId: req.usuario_id }, 'request failed');
 
   // NODE_ENV isn't set inside a deployed Netlify Function at runtime, so relying on
   // it alone was always leaking full error messages/stack traces (including internal

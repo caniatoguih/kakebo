@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout } from './components/layout/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { FeedbackHost } from './components/FeedbackHost';
 
 // Lazy loading components
 const Dashboard = React.lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -19,13 +20,15 @@ const queryClient = new QueryClient();
 
 // Private Route Wrapper
 function PrivateRoute() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <LoadingFallback />;
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
 // Redirect if already logged in
 function PublicRoute() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <LoadingFallback />;
   return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" replace />;
 }
 
@@ -42,6 +45,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
+            <FeedbackHost />
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
                 {/* Public Routes */}

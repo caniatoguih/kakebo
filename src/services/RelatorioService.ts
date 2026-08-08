@@ -2,6 +2,7 @@ import { OrcamentoRepository } from '../repositories/OrcamentoRepository';
 import { TransacaoRepository } from '../repositories/TransacaoRepository';
 import { PilarKakebo } from '../domain/enums/PilarKakebo';
 import prisma from '../lib/prisma';
+import { getCashFlowMonthForCardTransaction } from '../domain/billing/billingCycle';
 
 function getMonthsRange(inicioStr: string, fimStr: string): string[] {
   const months: string[] = [];
@@ -205,7 +206,11 @@ export class RelatorioService {
     for (const t of transacoes) {
       let mesStr = '';
       if (t.conta?.tipo === 'CartaoCredito' && t.conta.cartao_detalhe && !isInvoicePayment(t.descricao)) {
-        mesStr = getPaymentMonthStr(t.data_transacao, t.conta.cartao_detalhe.dia_fechamento);
+        mesStr = getCashFlowMonthForCardTransaction(
+          t.data_transacao,
+          t.conta.cartao_detalhe.dia_fechamento,
+          t.conta.cartao_detalhe.dia_vencimento,
+        );
       } else {
         mesStr = getNormalAccountMonthStr(t.data_transacao);
       }

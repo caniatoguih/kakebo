@@ -45,6 +45,7 @@ export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputPro
     return (
       <Input
         {...props}
+        className={className}
         ref={ref}
         type="text"
         value={displayValue}

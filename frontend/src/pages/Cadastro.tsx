@@ -7,7 +7,9 @@ import { authService } from '@/services/authService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormFieldError } from '@/components/FormFieldError';
 import { Label } from '@/components/ui/label';
+import { notify } from '@/components/FeedbackHost';
 
 const cadastroSchema = z.object({
   nome: z.string().min(3, 'Nome muito curto'),
@@ -28,7 +30,7 @@ export function Cadastro() {
     try {
       setErrorMsg('');
       await authService.register(data);
-      alert('Cadastro realizado com sucesso! Faça seu login.');
+      notify('Cadastro realizado com sucesso! Faça seu login.', 'success');
       navigate('/login');
     } catch (error: any) {
       setErrorMsg(error.response?.data?.message || 'Erro ao realizar cadastro.');
@@ -44,21 +46,21 @@ export function Cadastro() {
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
-            {errorMsg && <div className="p-3 bg-destructive/15 text-destructive text-sm rounded-md font-medium">{errorMsg}</div>}
+            {errorMsg && <div role="alert" className="p-3 bg-destructive/15 text-destructive text-sm rounded-md font-medium">{errorMsg}</div>}
             <div className="space-y-2">
               <Label htmlFor="nome">Nome</Label>
-              <Input id="nome" placeholder="Seu nome completo" {...register('nome')} />
-              {errors.nome && <span className="text-xs text-destructive font-medium">{errors.nome.message}</span>}
+              <Input id="nome" placeholder="Seu nome completo" aria-invalid={!!errors.nome} aria-describedby={errors.nome ? 'register-name-error' : undefined} {...register('nome')} />
+              <FormFieldError id="register-name-error" message={errors.nome?.message} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" placeholder="seu@email.com" {...register('email')} />
-              {errors.email && <span className="text-xs text-destructive font-medium">{errors.email.message}</span>}
+              <Input id="email" type="email" placeholder="seu@email.com" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'register-email-error' : undefined} {...register('email')} />
+              <FormFieldError id="register-email-error" message={errors.email?.message} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="senha">Senha</Label>
-              <Input id="senha" type="password" placeholder="Crie uma senha forte" {...register('senha')} />
-              {errors.senha && <span className="text-xs text-destructive font-medium">{errors.senha.message}</span>}
+              <Input id="senha" type="password" placeholder="Crie uma senha forte" aria-invalid={!!errors.senha} aria-describedby={errors.senha ? 'register-password-error' : undefined} {...register('senha')} />
+              <FormFieldError id="register-password-error" message={errors.senha?.message} />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">

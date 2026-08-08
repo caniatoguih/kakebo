@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { notify } from '@/components/FeedbackHost';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,7 @@ interface ParsedRow {
   conta_destino_id?: string;
 }
 
-export function ImportarCSVModal(): React.ReactElement {
+export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}): React.ReactElement {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
@@ -202,7 +203,7 @@ export function ImportarCSVModal(): React.ReactElement {
     
     const brMatch = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (brMatch) {
-      const [_, day, month, year] = brMatch;
+      const [, day, month, year] = brMatch;
       return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
 
@@ -211,12 +212,10 @@ export function ImportarCSVModal(): React.ReactElement {
       return isoMatch[0];
     }
 
-    try {
-      const date = new Date(clean);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
-      }
-    } catch (_) {}
+    const date = new Date(clean);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
 
     return new Date().toISOString().split('T')[0];
   };
@@ -224,7 +223,7 @@ export function ImportarCSVModal(): React.ReactElement {
   // Processa todas as linhas do CSV com base no mapeamento e vai para o preview
   const handleMapColumns = () => {
     if (colData === '-1' || colDesc === '-1' || colValor === '-1') {
-      alert('Por favor, selecione as colunas correspondentes à Data, Descrição e Valor.');
+      notify('Por favor, selecione as colunas correspondentes à Data, Descrição e Valor.');
       return;
     }
 
@@ -358,14 +357,14 @@ export function ImportarCSVModal(): React.ReactElement {
       resetModal();
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Erro ao importar transações.');
+      notify(err.response?.data?.message || 'Erro ao importar transações.');
     }
   });
 
   const handleImportSubmit = async () => {
     const selectedRows = previewRows.filter(r => r.selected);
     if (selectedRows.length === 0) {
-      alert('Selecione pelo menos uma transação para importar.');
+      notify('Selecione pelo menos uma transação para importar.');
       return;
     }
 
@@ -417,10 +416,10 @@ export function ImportarCSVModal(): React.ReactElement {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        {trigger ?? <Button variant="outline" className="gap-2">
           <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
           Importar CSV
-        </Button>
+        </Button>}
       </DialogTrigger>
       
       <DialogContent className={`border-border flex flex-col ${step === 3 ? 'sm:max-w-[950px] h-[85vh]' : 'sm:max-w-[480px]'}`}>

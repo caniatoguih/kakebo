@@ -3,6 +3,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { notify } from '@/components/FeedbackHost';
+import { FormFieldError } from '@/components/FormFieldError';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,7 +38,7 @@ export function NovaSubcategoriaModal({ categoria }: NovaSubcategoriaModalProps)
       reset();
     },
     onError: (error: any) => {
-      alert(error.response?.data?.message || 'Erro ao criar subcategoria.');
+      notify(error.response?.data?.message || 'Erro ao criar subcategoria.');
     }
   });
 
@@ -60,9 +62,9 @@ export function NovaSubcategoriaModal({ categoria }: NovaSubcategoriaModalProps)
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>Nome da Subcategoria</Label>
-            <Input placeholder="Ex: Ração do cachorro, Freelance" {...register('nome')} />
-            {errors.nome && <span className="text-xs text-destructive">{errors.nome.message}</span>}
+            <Label htmlFor="subcategory-name">Nome da Subcategoria</Label>
+            <Input id="subcategory-name" placeholder="Ex: Ração do cachorro, Freelance" aria-invalid={!!errors.nome} aria-describedby={errors.nome ? 'subcategory-name-error' : undefined} {...register('nome')} />
+            <FormFieldError id="subcategory-name-error" message={errors.nome?.message} />
           </div>
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

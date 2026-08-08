@@ -1,15 +1,18 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
     container_name: kakebo_db_prod
     environment:
       POSTGRES_USER: ${DB_USER:-gcaniato}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-9519Gc!#}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD obrigatoria em producao}
       POSTGRES_DB: ${DB_NAME:-kakebo}
     volumes:
       - kakebo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-gcaniato} -d ${DB_NAME:-kakebo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   app:
@@ -18,13 +21,20 @@ services:
       dockerfile: Dockerfile
     container_name: kakebo_app_prod
     environment:
-      - DATABASE_URL=postgresql://${DB_USER:-gcaniato}:${DB_PASSWORD:-9519Gc!%23}@db:5432/${DB_NAME:-kakebo}?schema=public
-      - JWT_SECRET=${JWT_SECRET:-sua_chave_secreta_super_segura_de_producao}
+      - DATABASE_URL=postgresql://${DB_USER:-gcaniato}:${DB_PASSWORD:?DB_PASSWORD obrigatoria em producao}@db:5432/${DB_NAME:-kakebo}?schema=public
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET obrigatorio em producao}
       - PORT=3000
+      - METRICS_TOKEN=${METRICS_TOKEN:?METRICS_TOKEN obrigatorio em producao}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     command: sh -c "npx prisma migrate deploy && npm start"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build:
@@ -34,9 +44,9 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
   kakebo_pgdata:
-

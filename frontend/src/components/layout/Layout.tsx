@@ -11,13 +11,14 @@ export function Layout() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   
   const navItems = [
-    { name: 'Reflexão', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Fluxo de Caixa', path: '/transacoes', icon: Receipt },
-    { name: 'Orçamento', path: '/planejamento', icon: PiggyBank },
-    { name: 'Fluxo Contábil', path: '/fluxo-contabil', icon: ScrollText },
-    { name: 'Contas', path: '/contas', icon: CreditCard },
-    { name: 'Categorias', path: '/categorias', icon: Tags },
+    { name: 'Reflexão', shortName: 'Reflexão', description: 'Resumo mensal e análise dos pilares Kakebo', path: '/dashboard', icon: LayoutDashboard, primary: true },
+    { name: 'Fluxo de Caixa', shortName: 'Fluxo', description: 'Receitas, despesas e transferências', path: '/transacoes', icon: Receipt, primary: true },
+    { name: 'Planejamento', shortName: 'Planejar', description: 'Orçamento mensal por categoria', path: '/planejamento', icon: PiggyBank, primary: true },
+    { name: 'Visão Contábil', shortName: 'Contábil', description: 'Consolidação de saldos e movimentações por período', path: '/fluxo-contabil', icon: ScrollText, primary: false },
+    { name: 'Contas e Cartões', shortName: 'Contas', description: 'Saldos, cartões e faturas', path: '/contas', icon: CreditCard, primary: true },
+    { name: 'Categorias', shortName: 'Categorias', description: 'Classificações de receitas e despesas', path: '/categorias', icon: Tags, primary: false },
   ];
+  const currentItem = navItems.find((item) => location.pathname.startsWith(item.path)) ?? navItems[0];
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50/50 dark:bg-slate-950 p-0 md:p-4">
@@ -58,6 +59,7 @@ export function Layout() {
                 <Link
                   key={item.path}
                   to={item.path}
+                  title={item.description}
                   onClick={() => setIsMobileOpen(false)}
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 border-l-[3px]",
@@ -104,17 +106,12 @@ export function Layout() {
         {/* Main Content Area */}
         <main className="flex flex-1 flex-col overflow-hidden bg-card">
           {/* Header (Hidden on Desktop) */}
-          <header className="flex md:hidden h-20 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 bg-card px-6">
+          <header className="flex md:hidden h-20 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 bg-card px-4">
             <div className="flex items-center">
-              <Button variant="ghost" size="icon" className="rounded-lg" onClick={() => setIsMobileOpen(true)}>
+              <Button aria-label="Abrir menu" variant="ghost" size="icon" className="rounded-lg" onClick={() => setIsMobileOpen(true)}>
                 <Menu className="h-5 w-5" />
               </Button>
-              <div className="flex items-center gap-2 ml-4">
-                <div className="p-1.5 rounded-lg bg-emerald-600 text-white">
-                  <Cloud className="h-4 w-4" />
-                </div>
-                <span className="text-lg font-bold text-slate-800 dark:text-slate-100">kakebo</span>
-              </div>
+              <div className="ml-3"><p className="text-[11px] font-medium text-muted-foreground">Você está em</p><p className="text-base font-bold text-slate-800 dark:text-slate-100">{currentItem.name}</p></div>
             </div>
             
             <div className="flex flex-1 justify-end items-center gap-4">
@@ -126,11 +123,19 @@ export function Layout() {
           </header>
 
           {/* Page Outlet inside clean scrollable container */}
-          <div className="flex-1 overflow-auto p-6 md:p-8">
+          <div className="flex-1 overflow-auto p-4 pb-24 sm:p-6 sm:pb-24 md:p-8">
             <div className="mx-auto max-w-6xl">
               <Outlet />
             </div>
           </div>
+          <nav aria-label="Navegação principal mobile" className="absolute inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t bg-card/95 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden">
+            {navItems.filter((item) => item.primary).map((item) => {
+              const active = location.pathname.startsWith(item.path);
+              return <Link key={item.path} to={item.path} aria-current={active ? 'page' : undefined} className={cn('flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-semibold', active ? 'text-emerald-600' : 'text-muted-foreground hover:bg-muted hover:text-foreground')}>
+                <item.icon className="h-5 w-5" /><span>{item.shortName}</span>
+              </Link>;
+            })}
+          </nav>
         </main>
       </div>
     </div>

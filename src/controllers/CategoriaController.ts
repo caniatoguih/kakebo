@@ -1,8 +1,14 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
+import { PilarCategoria, TipoLancamento } from '@prisma/client';
 
 // Seed padrão dos 4 pilares Kakebo com subcategorias
-const KAKEBO_SEED = [
+const KAKEBO_SEED: Array<{
+  nome: string;
+  pilar: PilarCategoria;
+  tipo: TipoLancamento;
+  subcategorias: string[];
+}> = [
   {
     nome: 'Sobrevivência',
     pilar: 'Sobrevivencia',

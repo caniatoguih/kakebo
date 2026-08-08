@@ -1,5 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { notify } from '@/components/FeedbackHost';
+import { ConfirmActionDialog } from '@/components/ConfirmActionDialog';
+import { QueryErrorState } from '@/components/QueryErrorState';
+import { ContentGridSkeleton } from '@/components/ContentGridSkeleton';
 import { categoriasService, type CategoriaData } from '@/services/categoriasService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -7,22 +11,31 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { X, Tag } from 'lucide-react';
 import { NovaSubcategoriaModal } from '@/components/Categorias/NovaSubcategoriaModal';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function Categorias(): React.ReactElement {
   const queryClient = useQueryClient();
+  const { usuario } = useAuth();
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; nome: string } | null>(null);
 
-  const { data: categorias = [], isLoading, isError } = useQuery<CategoriaData[]>({
+  const { data: categorias = [], isLoading, isError, isFetching, error: queryError, refetch } = useQuery<CategoriaData[]>({
     queryKey: ['categorias'],
     queryFn: categoriasService.listar,
   });
+
+  useEffect(() => {
+    if (usuario && !isLoading && !isError) localStorage.setItem(`kakebo:categories-reviewed:${usuario.id}`, 'true');
+  }, [usuario, isLoading, isError]);
 
   const deleteMutation = useMutation({
     mutationFn: (subId: string) => categoriasService.deletarSubcategoria(subId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categorias'] });
+      setPendingDelete(null);
+      notify('Subcategoria excluída com sucesso.', 'success');
     },
     onError: (error: any) => {
-      alert(error.response?.data?.message || 'Erro ao excluir subcategoria.');
+      notify(error.response?.data?.message || 'Erro ao excluir subcategoria.');
     }
   });
 
@@ -30,9 +43,7 @@ export function Categorias(): React.ReactElement {
   const categoriasReceita = categorias.filter(c => c.tipo === 'Receita');
 
   const handleDelete = (subId: string, nome: string) => {
-    if (confirm(`Tem certeza que deseja remover a subcategoria "${nome}"?`)) {
-      deleteMutation.mutate(subId);
-    }
+    setPendingDelete({ id: subId, nome });
   };
 
   const renderCategoriaCard = (cat: CategoriaData) => (
@@ -84,8 +95,8 @@ export function Categorias(): React.ReactElement {
         </p>
       </div>
 
-      {isLoading && <p>Carregando categorias...</p>}
-      {isError && <p className="text-destructive">Erro ao carregar categorias.</p>}
+      {isLoading && <ContentGridSkeleton />}
+      {isError && <QueryErrorState error={queryError} title="Erro ao carregar categorias." retrying={isFetching} onRetry={() => refetch()} />}
 
       {!isLoading && !isError && (
         <Tabs defaultValue="despesas" className="w-full">
@@ -107,6 +118,15 @@ export function Categorias(): React.ReactElement {
           </TabsContent>
         </Tabs>
       )}
+      <ConfirmActionDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title="Excluir subcategoria?"
+        description={`A subcategoria “${pendingDelete?.nome ?? ''}” será removida permanentemente.`}
+        impact="Lançamentos existentes podem perder esta classificação, afetando filtros e relatórios por categoria."
+        pending={deleteMutation.isPending}
+        onConfirm={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
+      />
     </div>
   );
 }

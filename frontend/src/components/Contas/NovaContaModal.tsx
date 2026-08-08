@@ -3,7 +3,9 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { notify } from '@/components/FeedbackHost';
+import { FormFieldError } from '@/components/FormFieldError';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,7 +67,7 @@ export function NovaContaModal({ contaParaEditar }: NovaContaModalProps): React.
     } else if (!open) {
       reset({ tipo: 'Corrente', saldo_inicial: 0 });
     }
-  }, [open, contaParaEditar]);
+  }, [open, contaParaEditar, reset, setValue]);
 
   const mutation = useMutation({
     mutationFn: (data: FormInput) => {
@@ -101,7 +103,7 @@ export function NovaContaModal({ contaParaEditar }: NovaContaModalProps): React.
       reset();
     },
     onError: (error: any) => {
-      alert(error.response?.data?.message || 'Erro ao salvar conta.');
+      notify(error.response?.data?.message || 'Erro ao salvar conta.');
     }
   });
 
@@ -119,12 +121,15 @@ export function NovaContaModal({ contaParaEditar }: NovaContaModalProps): React.
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? `Editar: ${contaParaEditar?.nome}` : 'Adicionar Conta / Cartão'}</DialogTitle>
+          <DialogDescription>
+            {isEditing ? 'Atualize os dados financeiros desta conta.' : 'Informe os dados da nova conta ou cartão.'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit((d: FormInput) => mutation.mutate(d))} className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>Nome</Label>
-            <Input placeholder="Ex: Nubank, Carteira" {...register('nome')} />
-            {errors.nome && <span className="text-xs text-destructive">{errors.nome.message}</span>}
+            <Label htmlFor="account-name">Nome</Label>
+            <Input id="account-name" placeholder="Ex: Nubank, Carteira" aria-invalid={!!errors.nome} aria-describedby={errors.nome ? 'account-name-error' : undefined} {...register('nome')} />
+            <FormFieldError id="account-name-error" message={errors.nome?.message} />
           </div>
 
           {/* Tipo só pode mudar na criação */}

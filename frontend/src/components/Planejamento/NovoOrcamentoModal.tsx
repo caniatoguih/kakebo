@@ -3,11 +3,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { notify } from '@/components/FeedbackHost';
+import { FormFieldError } from '@/components/FormFieldError';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
   DialogFooter,
 } from '@/components/ui/dialog';
@@ -81,7 +84,7 @@ export function NovoOrcamentoModal({ mes, ano, editItem, trigger }: Props): Reac
     },
     onError: (err) => {
       console.error('Erro ao salvar orçamento:', err);
-      alert('Erro ao salvar. Verifique se está autenticado.');
+      notify('Erro ao salvar. Verifique se está autenticado.');
     },
   });
 
@@ -108,6 +111,9 @@ export function NovoOrcamentoModal({ mes, ano, editItem, trigger }: Props): Reac
           <DialogTitle>
             {editItem ? `Editar: ${editItem.subcategoria_nome}` : 'Novo Orçamento'}
           </DialogTitle>
+          <DialogDescription>
+            {editItem ? 'Atualize o valor planejado para esta categoria.' : 'Defina uma categoria e um valor para o orçamento.'}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
@@ -118,7 +124,7 @@ export function NovoOrcamentoModal({ mes, ano, editItem, trigger }: Props): Reac
                 onValueChange={(val) => setValue('subcategoria_id', val)}
                 defaultValue=""
               >
-                <SelectTrigger id="subcategoria_id">
+                <SelectTrigger id="subcategoria_id" aria-invalid={!!errors.subcategoria_id} aria-describedby={errors.subcategoria_id ? 'budget-category-error' : undefined}>
                   <SelectValue placeholder="Selecione a subcategoria..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -136,9 +142,7 @@ export function NovoOrcamentoModal({ mes, ano, editItem, trigger }: Props): Reac
                   ))}
                 </SelectContent>
               </Select>
-              {errors.subcategoria_id && (
-                <span className="text-xs text-destructive">{errors.subcategoria_id.message}</span>
-              )}
+              <FormFieldError id="budget-category-error" message={errors.subcategoria_id?.message} />
             </div>
           )}
 
@@ -149,11 +153,11 @@ export function NovoOrcamentoModal({ mes, ano, editItem, trigger }: Props): Reac
               type="number"
               step="0.01"
               placeholder="0,00"
+              aria-invalid={!!errors.valor_orcado}
+              aria-describedby={errors.valor_orcado ? 'budget-value-error' : undefined}
               {...register('valor_orcado')}
             />
-            {errors.valor_orcado && (
-              <span className="text-xs text-destructive">{errors.valor_orcado.message}</span>
-            )}
+            <FormFieldError id="budget-value-error" message={errors.valor_orcado?.message} />
           </div>
 
           <DialogFooter className="pt-2">

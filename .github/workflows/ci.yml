@@ -2,13 +2,32 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
   pull_request:
     branches: [ main ]
 
 jobs:
   backend-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: kakebo_test
+          POSTGRES_PASSWORD: kakebo_test
+          POSTGRES_DB: kakebo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kakebo_test -d kakebo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kakebo_test:kakebo_test@localhost:5432/kakebo_test?schema=public
+      JWT_SECRET: ci-only-secret-with-more-than-thirty-two-characters
+      RUN_DB_TESTS: 'true'
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -18,10 +37,18 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: Validate Prisma schema
+        run: npx prisma validate
+      - name: Prepare isolated test database
+        run: npx prisma db push --skip-generate
+      - name: Lint backend
+        run: npm run lint
       - name: Build backend
         run: npm run build
       - name: Run tests
         run: npm run test
+      - name: Audit test database balances
+        run: npm run audit:balances
 
   frontend-test:
     runs-on: ubuntu-latest
@@ -44,3 +71,101 @@ jobs:
         run: npm run build
       - name: Run tests
         run: npm run test
+
+  frontend-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: kakebo_test
+          POSTGRES_PASSWORD: kakebo_test
+          POSTGRES_DB: kakebo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kakebo_test -d kakebo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kakebo_test:kakebo_test@localhost:5432/kakebo_test?schema=public
+      JWT_SECRET: ci-e2e-secret-with-more-than-thirty-two-characters
+      NODE_ENV: test
+      E2E_BASE_URL: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install backend dependencies
+        run: npm ci
+      - name: Prepare test database and backend
+        run: |
+          npx prisma db push --skip-generate
+          npm run build
+          npm start &
+          until curl --fail --silent http://localhost:3000/api/health; do sleep 2; done
+      - name: Install frontend and browser
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Start frontend
+        working-directory: ./frontend
+        env:
+          VITE_API_URL: http://localhost:3000/api
+        run: |
+          npm run dev -- --host 0.0.0.0 &
+          until curl --fail --silent http://localhost:5173; do sleep 2; done
+      - name: Run desktop and mobile journeys
+        working-directory: ./frontend
+        run: npm run test:e2e
+      - name: Upload E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-e2e-evidence
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+            docs/ux-baseline
+
+  production-db-migrate:
+    name: Synchronize production database (Neon)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend-test, frontend-test, frontend-e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    concurrency:
+      group: production-neon-migrations
+      cancel-in-progress: false
+    env:
+      # DB_URL is stored as a GitHub secret; Prisma reads DATABASE_URL.
+      DATABASE_URL: ${{ secrets.DB_URL }}
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install backend dependencies
+        run: npm ci
+      - name: Validate production database secret
+        shell: bash
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "GitHub secret DB_URL is not configured."
+            exit 1
+          fi
+      - name: Validate Prisma schema
+        run: npx prisma validate
+      - name: Apply pending migrations to Neon
+        run: npx prisma migrate deploy
+      - name: Confirm migration status
+        run: npx prisma migrate status

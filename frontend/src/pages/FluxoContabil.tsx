@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { Fragment, useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { transacoesService } from '@/services/transacoesService';
 import { contasService } from '@/services/contasService';
@@ -6,6 +6,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { QueryErrorState } from '@/components/QueryErrorState';
+import { EmptyState } from '@/components/EmptyState';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight, ScrollText, TrendingUp, TrendingDown, DollarSign, Wallet, Eye, CheckCircle2, AlertCircle, Printer, Maximize2, Minimize2 } from 'lucide-react';
 
 // Formata valor monetário em BRL
@@ -85,7 +88,7 @@ export function FluxoContabil() {
   });
 
   // Query React Query do DFC
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isFetching, error: queryError, refetch } = useQuery({
     queryKey: ['fluxo-contabil', startMonth, endMonth, statusFilter, contaSelecionada],
     queryFn: () => transacoesService.obterFluxoContabil(
       startMonth,
@@ -328,10 +331,10 @@ export function FluxoContabil() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-3">
             <ScrollText className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
-            Fluxo Contábil (DFC)
+            Visão Contábil (DFC)
           </h1>
           <p className="text-muted-foreground">
-            Demonstrativo de fluxo de caixa comparativo anual ou personalizado com projeções previstas e filtro de contas.
+            Consolide saldos e movimentações por período. Para registrar e editar lançamentos, use o Fluxo de Caixa.
           </p>
         </div>
 
@@ -458,10 +461,9 @@ export function FluxoContabil() {
           <p className="text-muted-foreground text-sm font-semibold">Conciliando lançamentos e saldos...</p>
         </div>
       ) : isError ? (
-        <div className="p-8 text-center bg-rose-50/50 dark:bg-rose-950/10 border border-rose-100 dark:border-rose-900/50 rounded-2xl">
-          <p className="text-rose-600 dark:text-rose-400 font-semibold">Ocorreu um erro ao carregar o Fluxo Contábil.</p>
-          <p className="text-xs text-muted-foreground mt-1">Verifique a conexão ou tente alterar as datas selecionadas.</p>
-        </div>
+        <QueryErrorState error={queryError} title="Ocorreu um erro ao carregar o Fluxo Contábil." description="Verifique a conexão ou ajuste as datas selecionadas e tente novamente." retrying={isFetching} onRetry={() => refetch()} />
+      ) : dfc.entradas.length === 0 && dfc.saidas.length === 0 ? (
+        <EmptyState icon={ScrollText} title="Nenhuma movimentação neste período" description="O fluxo contábil será montado quando houver receitas ou despesas no intervalo selecionado." action={<Button asChild><Link to="/transacoes">Registrar movimentação</Link></Button>} />
       ) : (
         <>
           {/* KPI Cards */}
@@ -579,9 +581,8 @@ export function FluxoContabil() {
                   {dfc.entradas.map((cat: any) => {
                     const isExpanded = !!expandedCategories[cat.categoria_nome];
                     return (
-                      <>
+                      <Fragment key={`entrada-${cat.categoria_nome}`}>
                         <tr
-                          key={cat.categoria_nome}
                           className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 cursor-pointer transition-colors print-category-row"
                           onClick={() => toggleCategory(cat.categoria_nome)}
                         >
@@ -614,7 +615,7 @@ export function FluxoContabil() {
                             ))}
                           </tr>
                         ))}
-                      </>
+                      </Fragment>
                     );
                   })}
 
@@ -642,9 +643,8 @@ export function FluxoContabil() {
                   {dfc.saidas.map((cat: any) => {
                     const isExpanded = !!expandedCategories[cat.categoria_nome];
                     return (
-                      <>
+                      <Fragment key={`saida-${cat.categoria_nome}`}>
                         <tr
-                          key={cat.categoria_nome}
                           className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 cursor-pointer transition-colors print-category-row"
                           onClick={() => toggleCategory(cat.categoria_nome)}
                         >
@@ -677,7 +677,7 @@ export function FluxoContabil() {
                             ))}
                           </tr>
                         ))}
-                      </>
+                      </Fragment>
                     );
                   })}
 

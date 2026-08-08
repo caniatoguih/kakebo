@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
+import { assertAccountOwnership } from '../services/OwnershipService';
+import { calculateAccountBalanceCents } from '../domain/finance/balanceImpact';
+import { fromCents } from '../domain/finance/money';
 
 function getFaturaRange(diaFechamento: number): { start: Date; end: Date } {
   const now = new Date();
@@ -21,6 +24,38 @@ function getFaturaRange(diaFechamento: number): { start: Date; end: Date } {
   }
 
   return { start, end };
+}
+
+function getClosedFaturaRange(diaFechamento: number): { start: Date; end: Date } {
+  const openRange = getFaturaRange(diaFechamento);
+  const end = new Date(openRange.start.getTime() - 1);
+  const start = new Date(
+    openRange.start.getFullYear(),
+    openRange.start.getMonth() - 1,
+    diaFechamento,
+    0,
+    0,
+    0,
+    0
+  );
+
+  return { start, end };
+}
+
+function getInvoiceImpact(transacao: { tipo: string; descricao: string; valor: unknown }): number {
+  const valor = Number(transacao.valor);
+
+  if (transacao.tipo === 'Despesa') {
+    return valor;
+  }
+  if (transacao.tipo === 'Transferencia') {
+    return transacao.descricao.includes('[Saída]') ? valor : -valor;
+  }
+  if (transacao.tipo === 'Receita') {
+    return -valor;
+  }
+
+  return 0;
 }
 
 function getBillingMonth(dataTransacao: Date, diaFechamento: number): string {
@@ -71,6 +106,12 @@ export class ContaController {
 
     try {
       if (tipo === 'CartaoCredito') {
+        if (conta_pagamento_padrao_id) {
+          const contaPagamento = await assertAccountOwnership(conta_pagamento_padrao_id, usuario_id);
+          if (contaPagamento.tipo === 'CartaoCredito') {
+            return res.status(400).json({ message: 'A conta de pagamento não pode ser outro cartão de crédito.' });
+          }
+        }
         const conta = await prisma.contaBancaria.create({
           data: {
             usuario_id,
@@ -125,92 +166,66 @@ export class ContaController {
       
       const contasComSaldoAtualizado = await Promise.all(
         contas.map(async (conta) => {
-          // Busca todas as transações desta conta
-          const transacoes = await prisma.transacao.findMany({
-            where: { conta_id: conta.id }
-          });
-
-          let saldoCalculado = 0;
-
-          if (conta.tipo === 'CartaoCredito') {
-            // Para cartões de crédito: despesas e saídas aumentam o saldo devedor; entradas (pagamentos) diminuem
-            for (const t of transacoes) {
-              const valor = Number(t.valor);
-              if (t.tipo === 'Despesa') {
-                saldoCalculado += valor;
-              } else if (t.tipo === 'Transferencia') {
-                if (t.descricao.includes('[Saída]')) {
-                  saldoCalculado += valor;
-                } else {
-                  saldoCalculado -= valor;
-                }
-              } else if (t.tipo === 'Receita') {
-                saldoCalculado -= valor;
-              }
-            }
-          } else {
-            // Para contas normais: saldo_inicial + receitas - despesas +/- transferências (apenas pagas)
-            saldoCalculado = Number(conta.saldo_inicial);
-            for (const t of transacoes) {
-              if (t.status !== 'Pago') continue;
-              const valor = Number(t.valor);
-              if (t.tipo === 'Receita') {
-                saldoCalculado += valor;
-              } else if (t.tipo === 'Despesa') {
-                saldoCalculado -= valor;
-              } else if (t.tipo === 'Transferencia') {
-                if (t.descricao.includes('[Saída]')) {
-                  saldoCalculado -= valor;
-                } else {
-                  saldoCalculado += valor;
-                }
-              }
-            }
-          }
-
-          // Atualiza saldo no banco de dados para garantir consistência
-          const contaAtualizada = await prisma.contaBancaria.update({
-            where: { id: conta.id },
-            data: { saldo_atual: saldoCalculado },
-            include: { cartao_detalhe: true }
-          });
+          // O saldo é mantido atomicamente nas operações financeiras; listar é somente leitura.
+          const contaAtualizada = conta;
 
           // Calcula dinamicamente o valor da fatura do mês atual para cartões de crédito
           if (contaAtualizada.tipo === 'CartaoCredito' && contaAtualizada.cartao_detalhe) {
+            const explicitInvoices = await prisma.faturaCartao.findMany({
+              where: { cartao_id: contaAtualizada.id },
+              orderBy: { data_fechamento: 'desc' },
+            });
+            if (explicitInvoices.length > 0) {
+              const now = new Date();
+              const openInvoice = explicitInvoices.find((invoice) => invoice.data_fechamento > now);
+              const closedInvoice = explicitInvoices.find((invoice) =>
+                invoice.data_fechamento <= now && Number(invoice.total) > Number(invoice.total_pago),
+              );
+              return {
+                ...contaAtualizada,
+                fatura_atual: openInvoice ? Number(openInvoice.total) - Number(openInvoice.total_pago) : 0,
+                fatura_fechada: closedInvoice ? Number(closedInvoice.total) - Number(closedInvoice.total_pago) : 0,
+                fatura_fechada_id: closedInvoice?.id,
+                fatura_fechada_competencia: closedInvoice?.competencia,
+                fatura_fechada_vencimento: closedInvoice?.data_vencimento,
+              };
+            }
             const { start, end } = getFaturaRange(contaAtualizada.cartao_detalhe.dia_fechamento);
+            const closedRange = getClosedFaturaRange(contaAtualizada.cartao_detalhe.dia_fechamento);
 
             const transacoesFatura = await prisma.transacao.findMany({
               where: {
                 conta_id: contaAtualizada.id,
-                data_transacao: {
-                  gte: start,
-                  lte: end
-                }
+                OR: [
+                  { data_transacao: { gte: closedRange.start, lte: closedRange.end } },
+                  { data_transacao: { gte: start, lte: end } }
+                ]
               }
             });
 
             let faturaAtual = 0;
+            let faturaFechada = 0;
             for (const t of transacoesFatura) {
               if (isInvoicePayment(t.descricao)) {
+                // Um pagamento feito no ciclo aberto liquida a fatura imediatamente anterior.
+                if (t.data_transacao >= start && t.data_transacao <= end) {
+                  faturaFechada -= Number(t.valor);
+                }
                 continue;
               }
-              const valor = Number(t.valor);
-              if (t.tipo === 'Despesa') {
-                faturaAtual += valor;
-              } else if (t.tipo === 'Transferencia') {
-                if (t.descricao.includes('[Saída]')) {
-                  faturaAtual += valor;
-                } else {
-                  faturaAtual -= valor;
-                }
-              } else if (t.tipo === 'Receita') {
-                faturaAtual -= valor;
+
+              const impacto = getInvoiceImpact(t);
+              if (t.data_transacao >= closedRange.start && t.data_transacao <= closedRange.end) {
+                faturaFechada += impacto;
+              } else {
+                faturaAtual += impacto;
               }
             }
 
             return {
               ...contaAtualizada,
-              fatura_atual: faturaAtual
+              fatura_atual: faturaAtual,
+              fatura_fechada: faturaFechada
             };
           }
 
@@ -238,6 +253,13 @@ export class ContaController {
         return res.status(404).json({ message: 'Conta não encontrada.' });
       }
 
+      if (conta_pagamento_padrao_id) {
+        const contaPagamento = await assertAccountOwnership(conta_pagamento_padrao_id, usuario_id);
+        if (contaPagamento.id === id || contaPagamento.tipo === 'CartaoCredito') {
+          return res.status(400).json({ message: 'Selecione uma conta de pagamento válida.' });
+        }
+      }
+
       const contaAtualizada = await prisma.contaBancaria.update({
         where: { id },
         data: {
@@ -263,40 +285,9 @@ export class ContaController {
         where: { conta_id: id }
       });
 
-      let saldoCalculado = 0;
-      if (contaAtualizada.tipo === 'CartaoCredito') {
-        for (const t of transacoes) {
-          const valor = Number(t.valor);
-          if (t.tipo === 'Despesa') {
-            saldoCalculado += valor;
-          } else if (t.tipo === 'Transferencia') {
-            if (t.descricao.includes('[Saída]')) {
-              saldoCalculado += valor;
-            } else {
-              saldoCalculado -= valor;
-            }
-          } else if (t.tipo === 'Receita') {
-            saldoCalculado -= valor;
-          }
-        }
-      } else {
-        saldoCalculado = Number(contaAtualizada.saldo_inicial);
-        for (const t of transacoes) {
-          if (t.status !== 'Pago') continue;
-          const valor = Number(t.valor);
-          if (t.tipo === 'Receita') {
-            saldoCalculado += valor;
-          } else if (t.tipo === 'Despesa') {
-            saldoCalculado -= valor;
-          } else if (t.tipo === 'Transferencia') {
-            if (t.descricao.includes('[Saída]')) {
-              saldoCalculado -= valor;
-            } else {
-              saldoCalculado += valor;
-            }
-          }
-        }
-      }
+      const saldoCalculado = fromCents(calculateAccountBalanceCents(
+        contaAtualizada.tipo, contaAtualizada.saldo_inicial, transacoes,
+      ));
 
       const contaFinal = await prisma.contaBancaria.update({
         where: { id },
@@ -328,43 +319,9 @@ export class ContaController {
         where: { conta_id: id }
       });
 
-      let saldoCalculado = 0;
-
-      if (conta.tipo === 'CartaoCredito') {
-        // Para cartões de crédito: despesas e saídas aumentam o saldo devedor; entradas (pagamentos) diminuem
-        for (const t of transacoes) {
-          const valor = Number(t.valor);
-          if (t.tipo === 'Despesa') {
-            saldoCalculado += valor;
-          } else if (t.tipo === 'Transferencia') {
-            if (t.descricao.includes('[Saída]')) {
-              saldoCalculado += valor;
-            } else {
-              saldoCalculado -= valor;
-            }
-          } else if (t.tipo === 'Receita') {
-            saldoCalculado -= valor;
-          }
-        }
-      } else {
-        // Para contas normais: saldo_inicial + receitas - despesas +/- transferências (apenas pagas)
-        saldoCalculado = Number(conta.saldo_inicial);
-        for (const t of transacoes) {
-          if (t.status !== 'Pago') continue;
-          const valor = Number(t.valor);
-          if (t.tipo === 'Receita') {
-            saldoCalculado += valor;
-          } else if (t.tipo === 'Despesa') {
-            saldoCalculado -= valor;
-          } else if (t.tipo === 'Transferencia') {
-            if (t.descricao.includes('[Saída]')) {
-              saldoCalculado -= valor;
-            } else {
-              saldoCalculado += valor;
-            }
-          }
-        }
-      }
+      const saldoCalculado = fromCents(calculateAccountBalanceCents(
+        conta.tipo, conta.saldo_inicial, transacoes,
+      ));
 
       // Atualiza o saldo no banco de dados
       const contaAtualizada = await prisma.contaBancaria.update({
@@ -391,6 +348,38 @@ export class ContaController {
 
       if (!conta || !conta.cartao_detalhe) {
         return res.status(404).json({ message: 'Cartão de crédito não encontrado.' });
+      }
+
+      const explicitInvoices = await prisma.faturaCartao.findMany({
+        where: { cartao_id: id, usuario_id },
+        include: { transacoes: true, pagamentos: true },
+        orderBy: { competencia: 'asc' },
+      });
+      if (explicitInvoices.length > 0) {
+        return res.json({
+          conta: {
+            id: conta.id,
+            nome: conta.nome,
+            limite_total: conta.cartao_detalhe.limite_total,
+            dia_fechamento: conta.cartao_detalhe.dia_fechamento,
+            dia_vencimento: conta.cartao_detalhe.dia_vencimento,
+          },
+          faturas: explicitInvoices.map((invoice) => ({
+            id: invoice.id,
+            mes: invoice.competencia,
+            status: invoice.status,
+            data_fechamento: invoice.data_fechamento,
+            data_vencimento: invoice.data_vencimento,
+            total: Number(invoice.total),
+            total_pago: Number(invoice.total_pago),
+            saldo_restante: Math.max(0, Number(invoice.total) - Number(invoice.total_pago)),
+            transacoes: invoice.transacoes.map((transaction) => ({
+              ...transaction,
+              impacto_fatura: getInvoiceImpact(transaction),
+            })),
+            pagamentos: invoice.pagamentos,
+          })),
+        });
       }
 
       // Busca todas as transações deste cartão

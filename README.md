@@ -113,13 +113,23 @@ O Netlify **não** hospeda Postgres. Use um provedor gratuito/pago e copie a con
 | [Supabase](https://supabase.com) | Connection pooling (porta 6543) se disponível |
 | [Railway](https://railway.app) / [Aiven](https://aiven.io) | Postgres gerenciado |
 
-Aplique o schema no banco de produção (localmente, com a `DATABASE_URL` de prod):
+O schema de produção é sincronizado pelo GitHub Actions após os testes de backend,
+frontend e E2E passarem em um push para a branch `main`. Cadastre em
+**Settings → Secrets and variables → Actions** o secret:
 
-```bash
-# Na raiz do projeto, com DATABASE_URL apontando para o banco de produção:
-npx prisma db push
-# ou: npx prisma migrate deploy
-```
+- `DB_URL`: connection string direta do Neon, com SSL, usada exclusivamente para
+  executar `prisma migrate deploy`.
+
+O workflow converte `DB_URL` em `DATABASE_URL` somente durante a migration,
+serializa execuções concorrentes e interrompe o deploy de banco quando o secret
+estiver ausente ou uma migration falhar. Netlify e Vercel continuam usando a
+variável `DATABASE_URL` configurada em cada plataforma para a aplicação em runtime;
+para esse uso serverless, prefira a URL pooled do Neon.
+
+> Se o banco de produção já foi criado anteriormente com `prisma db push`, confira
+> e registre o estado inicial das migrations antes do primeiro workflow. Não marque
+> migrations como aplicadas sem confirmar que as respectivas tabelas, colunas,
+> índices e constraints já existem no Neon.
 
 ### 2. Variáveis de ambiente no Netlify
 
@@ -178,6 +188,12 @@ Browser
 Este repositório está estruturado na branch principal de desenvolvimento:
 *   **Branch Principal:** `dev` (sincronizada no GitHub)
 *   **Política de Git:** Arquivos de ambiente (`.env`), builds (`dist/`), bancos locais e `node_modules` estão no `.gitignore`. Use `.env.example` como referência.
+
+## ✅ Qualidade e testes
+
+A linha de base, os fluxos financeiros cobertos e os comandos de validação estão documentados em [`docs/LINHA_BASE_TESTES.md`](docs/LINHA_BASE_TESTES.md).
+
+Os procedimentos de logs, métricas, auditoria, backup e restauração estão em [`docs/OPERACAO.md`](docs/OPERACAO.md).
 
 ---
 

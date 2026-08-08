@@ -6,12 +6,17 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "lint": "tsc --noEmit",
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "RUN_DB_TESTS=true vitest run tests/api.integration.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:migrate:deploy": "prisma migrate deploy",
+    "backfill:phase3": "tsx src/scripts/backfillPhase3.ts",
+    "audit:balances": "tsx src/scripts/auditBalances.ts",
+    "backup": "bash scripts/backup-database.sh",
     "vercel-build": "npm run prisma:generate && cd frontend && npm install && npm run build",
     "netlify-build": "prisma generate && cd frontend && npm ci && npm run build",
     "postinstall": "prisma generate"

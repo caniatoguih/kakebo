@@ -1,51 +1,26 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { contasService, type ContaData } from '@/services/contasService';
+import { contasService, type ContaData, type FaturasResponse } from '@/services/contasService';
 import { transacoesService } from '@/services/transacoesService';
 import { Calendar, ChevronDown, ChevronUp, ShoppingBag, ArrowDownLeft, CalendarPlus, Ban } from 'lucide-react';
+import { notify } from '@/components/FeedbackHost';
+import { ConfirmActionDialog } from '@/components/ConfirmActionDialog';
+import { QueryErrorState } from '@/components/QueryErrorState';
 
 interface FaturasCardModalProps {
   cartao: ContaData;
 }
 
-interface TransacaoFatura {
-  id: string;
-  descricao: string;
-  valor: string;
-  tipo: 'Despesa' | 'Receita' | 'Transferencia';
-  data_transacao: string;
-  parcela_atual: number;
-  total_parcelas: number;
-  recorrente?: boolean;
-  transacao_pai_id?: string;
-  impacto_fatura: number;
-}
-
-interface FaturaMes {
-  mes: string; // YYYY-MM
-  total: number;
-  total_pago: number;
-  transacoes: TransacaoFatura[];
-}
-
-interface FaturasResponse {
-  conta: {
-    id: string;
-    nome: string;
-    limite_total: number;
-    dia_fechamento: number;
-    dia_vencimento: number;
-  };
-  faturas: FaturaMes[];
-}
-
 export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.ReactElement {
   const [open, setOpen] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
+  const [pendingCancellation, setPendingCancellation] = useState<{ parentId: string; installment: number } | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
-  const { data, isLoading, isError, refetch } = useQuery<FaturasResponse>({
+  const { data, isLoading, isError, isFetching, error: queryError, refetch } = useQuery<FaturasResponse>({
     queryKey: ['faturas-cartao', cartao.id],
     queryFn: () => contasService.obterFaturas(cartao.id!),
     enabled: open && !!cartao.id,
@@ -64,34 +39,38 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
     if (input === null) return; // Cancelado
     const meses = parseInt(input, 10);
     if (isNaN(meses) || meses < 1) {
-      alert("Por favor, insira um número válido de meses (mínimo 1).");
+      notify("Por favor, insira um número válido de meses (mínimo 1).");
       return;
     }
     
     try {
       const response = await transacoesService.prorrogar(transacao_pai_id, meses);
-      alert(response.message);
+      notify(response.message, 'success');
       refetch();
     } catch (error: any) {
       console.error(error);
-      alert(error.response?.data?.message || "Erro ao prorrogar recorrência.");
+      notify(error.response?.data?.message || "Erro ao prorrogar recorrência.");
     }
   };
 
   const handleCancelarRecorrencia = async (transacao_pai_id: string, parcela_limite: number) => {
     if (!transacao_pai_id) return;
-    const confirmacao = window.confirm(
-      `Deseja realmente encerrar esta recorrência/assinatura antecipadamente a partir da parcela ${parcela_limite}? \nTodas as cobranças e projeções futuras serão excluídas permanentemente do sistema.`
-    );
-    if (!confirmacao) return;
+    setPendingCancellation({ parentId: transacao_pai_id, installment: parcela_limite });
+  };
 
+  const confirmCancellation = async () => {
+    if (!pendingCancellation) return;
+    setIsCancelling(true);
     try {
-      const response = await transacoesService.cancelarRecorrencia(transacao_pai_id, parcela_limite);
-      alert(response.message);
+      const response = await transacoesService.cancelarRecorrencia(pendingCancellation.parentId, pendingCancellation.installment);
+      notify(response.message, 'success');
+      setPendingCancellation(null);
       refetch();
     } catch (error: any) {
       console.error(error);
-      alert(error.response?.data?.message || "Erro ao encerrar recorrência.");
+      notify(error.response?.data?.message || "Erro ao encerrar recorrência.");
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -126,9 +105,9 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
             <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             Visão Mensal de Faturas — {cartao.nome}
           </DialogTitle>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
             Acompanhe o detalhamento de compras e parcelamentos mês a mês.
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="py-4 space-y-4">
@@ -139,11 +118,7 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
             </div>
           )}
 
-          {isError && (
-            <p className="text-sm text-red-500 text-center py-6">
-              Erro ao carregar as faturas do cartão. Verifique o servidor.
-            </p>
-          )}
+          {isError && <QueryErrorState error={queryError} title="Erro ao carregar as faturas do cartão." retrying={isFetching} onRetry={() => refetch()} />}
 
           {!isLoading && !isError && data?.faturas.length === 0 && (
             <div className="text-center py-12 text-slate-400">
@@ -156,9 +131,17 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                 const isExpanded = !!expandedMonths[fatura.mes];
                 const totalInvoice = fatura.total;
                 const totalPago = fatura.total_pago || 0;
+                const saldoRestante = fatura.saldo_restante ?? Math.max(0, totalInvoice - totalPago);
 
                 let badge = null;
-                if (totalInvoice > 0) {
+                if (fatura.status) {
+                  const label = fatura.status === 'ParcialmentePaga' ? 'Parcial' : fatura.status;
+                  badge = (
+                    <span className="bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/50 font-bold px-2 py-0.5 rounded-full text-[9px]">
+                      {label}
+                    </span>
+                  );
+                } else if (totalInvoice > 0) {
                   if (totalPago >= totalInvoice - 0.05) {
                     badge = (
                       <span className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 font-bold px-2 py-0.5 rounded-full text-[9px]">
@@ -200,6 +183,12 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                         <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">
                           {fatura.transacoes.length} {fatura.transacoes.length === 1 ? 'lançamento' : 'lançamentos'}
                         </span>
+                        {fatura.data_vencimento && (
+                          <span className="text-[10px] text-slate-400 mt-1">
+                            Vence em {new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(fatura.data_vencimento))}
+                            {' · '}Restante {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(saldoRestante)}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -213,6 +202,7 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                         )}
                       </div>
                     </button>
+                    <div className="border-t px-4 py-2 text-right"><Button asChild variant="link" size="sm" className="h-auto p-0"><Link to={`/transacoes?conta=${cartao.id}&periodo=Mes&mes=${fatura.mes}`} onClick={() => setOpen(false)}>Ver lançamentos desta fatura</Link></Button></div>
 
                     {/* Transações Expandidas */}
                     {isExpanded && (
@@ -302,6 +292,16 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
             </div>
           )}
         </div>
+        <ConfirmActionDialog
+          open={!!pendingCancellation}
+          onOpenChange={(next) => !next && setPendingCancellation(null)}
+          title="Encerrar recorrência?"
+          description={`A recorrência será encerrada a partir da parcela ${pendingCancellation?.installment ?? ''}.`}
+          impact="Todas as cobranças e projeções futuras desta recorrência serão excluídas permanentemente. As parcelas anteriores serão preservadas."
+          confirmLabel="Encerrar recorrência"
+          pending={isCancelling}
+          onConfirm={confirmCancellation}
+        />
       </DialogContent>
     </Dialog>
   );

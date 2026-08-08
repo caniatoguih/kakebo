@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,7 @@ import { contasService, type ContaData } from '@/services/contasService';
 import { transacoesService } from '@/services/transacoesService';
 import { CheckCircle2, DollarSign } from 'lucide-react';
 import { CurrencyInput } from '@/components/ui/currency-input';
+import { notify } from '@/components/FeedbackHost';
 
 interface PagarFaturaModalProps {
   cartao: ContaData;
@@ -28,40 +29,41 @@ export function PagarFaturaModal({ cartao }: PagarFaturaModalProps): React.React
 
   // Estados locais do modal
   const [contaOrigemId, setContaOrigemId] = useState<string>('');
-  const [valorPago, setValorPago] = useState<number>(() => Math.abs(Number(cartao.fatura_atual ?? 0)));
+  const [formError, setFormError] = useState<string>('');
+  const [valorPago, setValorPago] = useState<number>(() => Math.max(Number(cartao.fatura_fechada ?? 0), 0));
   const [dataPagamento, setDataPagamento] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
   });
 
   const payMutation = useMutation({
-    mutationFn: async (payload: { conta_origem_id: string; valor: number; data_transacao: string }) => {
-      return transacoesService.importar(payload.conta_origem_id, [
-        {
-          descricao: `Liquidação Fatura ${cartao.nome}`,
-          valor: payload.valor,
-          tipo: 'Transferencia',
-          data_transacao: payload.data_transacao,
-          conta_destino_id: cartao.id,
-          status: 'Pago',
-        },
-      ]);
+    mutationFn: async (payload: { conta_origem_id: string; valor: number; data_pagamento: string }) => {
+      return transacoesService.pagarFatura({
+        cartao_id: cartao.id!,
+        fatura_id: cartao.fatura_fechada_id,
+        conta_origem_id: payload.conta_origem_id,
+        valor: payload.valor,
+        data_pagamento: payload.data_pagamento,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contas'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
+      queryClient.invalidateQueries({ queryKey: ['faturas-cartao', cartao.id] });
       setOpen(false);
+      notify('Pagamento da fatura registrado com sucesso.', 'success');
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Erro ao registrar o pagamento da fatura.');
+      setFormError(err.response?.data?.message || 'Erro ao registrar o pagamento da fatura.');
     },
   });
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (isOpen) {
-      // Pré-preenche o valor com a dívida atual do cartão
-      setValorPago(Math.abs(Number(cartao.fatura_atual ?? 0)));
+      // Pré-preenche somente o saldo da última fatura já fechada.
+      setValorPago(Math.max(Number(cartao.fatura_fechada ?? 0), 0));
+      setFormError('');
       // Pré-seleciona a primeira conta comum disponível se existir
       if (contasComuns.length > 0) {
         setContaOrigemId(contasComuns[0].id!);
@@ -70,19 +72,25 @@ export function PagarFaturaModal({ cartao }: PagarFaturaModalProps): React.React
   };
 
   const handleConfirm = () => {
+    if (payMutation.isPending) return;
     if (!contaOrigemId) {
-      alert('Por favor, selecione a conta de origem para o pagamento.');
+      setFormError('Selecione a conta de origem para o pagamento.');
       return;
     }
     if (valorPago <= 0) {
-      alert('O valor do pagamento deve ser maior que zero.');
+      setFormError('O valor do pagamento deve ser maior que zero.');
       return;
     }
+    if (valorPago > Number(cartao.fatura_fechada ?? 0)) {
+      setFormError('O pagamento não pode superar o saldo restante da fatura.');
+      return;
+    }
+    setFormError('');
 
     payMutation.mutate({
       conta_origem_id: contaOrigemId,
       valor: valorPago,
-      data_transacao: dataPagamento,
+      data_pagamento: dataPagamento,
     });
   };
 
@@ -103,21 +111,43 @@ export function PagarFaturaModal({ cartao }: PagarFaturaModalProps): React.React
           <DialogTitle className="text-lg font-bold text-slate-800 dark:text-slate-100">
             Pagar Fatura — {cartao.nome}
           </DialogTitle>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
             Abata a dívida do seu cartão gerando uma transferência a partir de outra conta bancária.
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           {/* Devedor Atual */}
           <div className="p-3.5 rounded-xl bg-purple-50/40 dark:bg-purple-950/10 border border-purple-100/50 dark:border-purple-900/20 flex justify-between items-center">
             <span className="text-xs font-semibold text-purple-700 dark:text-purple-400 uppercase tracking-wider">
-              Dívida Atual (Fatura):
+              Fatura Fechada:
             </span>
             <span className="text-lg font-extrabold text-purple-700 dark:text-purple-400">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(Number(cartao.fatura_atual ?? 0)))}
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.max(Number(cartao.fatura_fechada ?? 0), 0))}
             </span>
           </div>
+          <div className="grid grid-cols-2 gap-3 text-xs text-slate-500">
+            <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+              <span className="block font-semibold uppercase tracking-wide">Competência</span>
+              <span className="mt-1 block text-sm font-bold text-slate-700 dark:text-slate-200">
+                {cartao.fatura_fechada_competencia ?? 'Não identificada'}
+              </span>
+            </div>
+            <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+              <span className="block font-semibold uppercase tracking-wide">Vencimento</span>
+              <span className="mt-1 block text-sm font-bold text-slate-700 dark:text-slate-200">
+                {cartao.fatura_fechada_vencimento
+                  ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(cartao.fatura_fechada_vencimento))
+                  : '—'}
+              </span>
+            </div>
+          </div>
+
+          {formError && (
+            <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm font-medium text-rose-700 dark:bg-rose-950/20 dark:text-rose-300">
+              {formError}
+            </p>
+          )}
 
           {/* Conta de Origem */}
           <div className="space-y-1.5">
@@ -146,6 +176,7 @@ export function PagarFaturaModal({ cartao }: PagarFaturaModalProps): React.React
               placeholder="R$ 0,00"
               className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200"
             />
+            <p className="text-xs text-slate-400">Saldo restante máximo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(cartao.fatura_fechada ?? 0))}</p>
           </div>
 
           {/* Data do Pagamento */}
@@ -171,7 +202,7 @@ export function PagarFaturaModal({ cartao }: PagarFaturaModalProps): React.React
           </Button>
           <Button 
             onClick={handleConfirm}
-            disabled={payMutation.isPending}
+            disabled={payMutation.isPending || Number(cartao.fatura_fechada ?? 0) <= 0}
             className="rounded-xl h-10 bg-purple-600 hover:bg-purple-700 text-white font-semibold flex items-center gap-1.5 px-4"
           >
             <CheckCircle2 className="h-4.5 w-4.5" />

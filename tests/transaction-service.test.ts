@@ -1,0 +1,91 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => {
+  const tx = {
+    transacao: { create: vi.fn(), createMany: vi.fn() },
+    transferenciaGrupo: { create: vi.fn() },
+    contaBancaria: { update: vi.fn() },
+    faturaCartao: { upsert: vi.fn(), update: vi.fn() },
+    auditoriaFinanceira: { create: vi.fn() },
+  };
+  return {
+    tx,
+    transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    accountOwnership: vi.fn(),
+    subcategoryOwnership: vi.fn(),
+  };
+});
+
+vi.mock('../src/lib/prisma', () => ({
+  default: {
+    $transaction: mocks.transaction,
+    cartaoCreditoDetalhe: { findUnique: vi.fn().mockResolvedValue({ dia_fechamento: 10, dia_vencimento: 17 }) },
+  },
+}));
+
+vi.mock('../src/services/OwnershipService', () => ({
+  assertAccountOwnership: mocks.accountOwnership,
+  assertSubcategoryOwnership: mocks.subcategoryOwnership,
+}));
+
+import { TransacaoService } from '../src/services/TransacaoService';
+
+describe('criação financeira atômica', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.accountOwnership.mockResolvedValue({ id: 'conta-1', tipo: 'CartaoCredito' });
+    mocks.subcategoryOwnership.mockResolvedValue(null);
+    mocks.tx.transacao.createMany.mockResolvedValue({ count: 3 });
+    mocks.tx.contaBancaria.update.mockResolvedValue({});
+    mocks.tx.faturaCartao.upsert.mockResolvedValue({ id: 'fatura-1' });
+    mocks.tx.faturaCartao.update.mockResolvedValue({});
+    mocks.tx.auditoriaFinanceira.create.mockResolvedValue({});
+    mocks.tx.transferenciaGrupo.create.mockResolvedValue({ id: 'grupo-1' });
+  });
+
+  it('cria parcelas exatas e atualiza o saldo na mesma transação', async () => {
+    const service = new TransacaoService();
+    await service.criarTransacao({
+      conta_id: 'conta-1', subcategoria_id: null, descricao: 'Compra', valor: 100,
+      tipo: 'Despesa', data_transacao: '2025-01-31T12:00:00.000Z', status: 'Pago',
+      total_parcelas: 3, recorrente: false,
+    }, 'usuario-1');
+
+    expect(mocks.transaction).toHaveBeenCalledOnce();
+    const created = mocks.tx.transacao.createMany.mock.calls[0][0].data;
+    expect(created.map((item: any) => item.valor)).toEqual([33.34, 33.33, 33.33]);
+    expect(created.map((item: any) => item.data_transacao.toISOString())).toEqual([
+      '2025-01-31T12:00:00.000Z',
+      '2025-02-28T12:00:00.000Z',
+      '2025-03-31T12:00:00.000Z',
+    ]);
+    expect(mocks.tx.contaBancaria.update).toHaveBeenCalledWith({
+      where: { id: 'conta-1' }, data: { saldo_atual: { increment: 100 } },
+    });
+  });
+
+  it('cria os dois lados da transferência e atualiza ambas as contas atomicamente', async () => {
+    mocks.accountOwnership
+      .mockResolvedValueOnce({ id: 'conta-1', tipo: 'Corrente' })
+      .mockResolvedValueOnce({ id: 'conta-2', tipo: 'Poupanca' });
+    mocks.tx.transacao.create
+      .mockResolvedValueOnce({ id: 'saida-1', descricao: '[Saída] Reserva' })
+      .mockResolvedValueOnce({ id: 'entrada-1', descricao: '[Entrada] Reserva' });
+
+    const service = new TransacaoService();
+    await service.criarTransacao({
+      conta_id: 'conta-1', conta_destino_id: 'conta-2', descricao: 'Reserva', valor: 40,
+      tipo: 'Transferencia', data_transacao: '2026-08-07T12:00:00.000Z', status: 'Pago',
+      total_parcelas: 1, recorrente: false,
+    }, 'usuario-1');
+
+    expect(mocks.tx.transferenciaGrupo.create).toHaveBeenCalledOnce();
+    expect(mocks.tx.transacao.create).toHaveBeenCalledTimes(2);
+    expect(mocks.tx.contaBancaria.update).toHaveBeenNthCalledWith(1, {
+      where: { id: 'conta-1' }, data: { saldo_atual: { increment: -40 } },
+    });
+    expect(mocks.tx.contaBancaria.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 'conta-2' }, data: { saldo_atual: { increment: 40 } },
+    });
+  });
+});

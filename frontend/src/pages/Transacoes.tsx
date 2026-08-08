@@ -1,544 +1,217 @@
-import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { transacoesService, type TransacaoData } from '@/services/transacoesService';
+import { useDeferredValue, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { CheckCircle2, ChevronLeft, ChevronRight, Clock, CreditCard, FileDown, Filter, Search, Trash2, X } from 'lucide-react';
+import { notify } from '@/components/FeedbackHost';
+import { ConfirmActionDialog } from '@/components/ConfirmActionDialog';
+import { QueryErrorState } from '@/components/QueryErrorState';
+import { EmptyState } from '@/components/EmptyState';
+import { TransactionListSkeleton } from '@/components/TransactionListSkeleton';
+import { transacoesService, type TransacaoData, type TransactionFilters, type TransactionListResponse } from '@/services/transacoesService';
 import { contasService } from '@/services/contasService';
+import { categoriasService } from '@/services/categoriasService';
 import { NovaTransacaoModal } from '@/components/Transacoes/NovaTransacaoModal';
 import { ImportarCSVModal } from '@/components/Transacoes/ImportarCSVModal';
 import { SincronizarOFXModal } from '@/components/Transacoes/SincronizarOFXModal';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Button } from '@/components/ui/button';
-import { Search, Filter, CreditCard, CheckCircle2, Clock, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+const PAGE_SIZE = 25;
+const brl = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+function transferDestination(item: TransacaoData) {
+  return item.transferencia_grupo?.transacoes.find((side) => side.transferencia_direcao === 'Entrada');
+}
+
+function cleanDescription(item: TransacaoData) {
+  return item.descricao.replace(/^\[(?:Saída|Entrada)\]\s*/, '');
+}
 
 export function Transacoes() {
-  // Query de transações históricas (limite alto para busca rápida)
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['transacoes'],
-    queryFn: () => transacoesService.listar({ limit: 1000 }),
-  });
-
-  // Query de contas para popular o filtro de contas
-  const { data: contas = [] } = useQuery<any[]>({
-    queryKey: ['contas'],
-    queryFn: contasService.listar,
-  });
-
+  const [params, setParams] = useSearchParams();
   const queryClient = useQueryClient();
-
-  // Estados dos filtros
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('Todos');
-  const [contaFilter, setContaFilter] = useState<string>('Todos');
-  const [periodFilter, setPeriodFilter] = useState<string>('Este Mes');
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
-  const [showFilters, setShowFilters] = useState<boolean>(false);
-
-  const toggleMutation = useMutation({
-    mutationFn: (id: string) => transacoesService.toggleStatus(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
-      queryClient.invalidateQueries({ queryKey: ['contas'] });
-      queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
-    },
-    onError: (err: any) => {
-      alert(err.response?.data?.message || 'Erro ao alterar status da transação.');
-    }
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => transacoesService.excluir(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
-      queryClient.invalidateQueries({ queryKey: ['contas'] });
-      queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
-    },
-    onError: (err: any) => {
-      alert(err.response?.data?.message || 'Erro ao excluir transação.');
-    }
-  });
-
-  const handleDelete = (id: string, descricao: string) => {
-    if (confirm(`Deseja realmente excluir a transação "${descricao}"?`)) {
-      deleteMutation.mutate(id);
-    }
-  };
-
-  // Estado local para transações selecionadas
+  const [showFilters, setShowFilters] = useState(params.size > 0);
+  const [showImport, setShowImport] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<TransacaoData | null>(null);
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+  const search = params.get('busca') ?? '';
+  const deferredSearch = useDeferredValue(search);
+  const status = params.get('status') ?? 'Todos';
+  const account = params.get('conta') ?? 'Todos';
+  const subcategory = params.get('subcategoria') ?? 'Todos';
+  const period = params.get('periodo') ?? 'Mes';
+  const month = params.get('mes') ?? new Date().toISOString().slice(0, 7);
+  const startDate = params.get('inicio') ?? '';
+  const endDate = params.get('fim') ?? '';
+  const page = Math.max(1, Number(params.get('pagina') ?? 1));
 
-  const deleteBatchMutation = useMutation({
-    mutationFn: (ids: string[]) => transacoesService.excluirEmLote(ids),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
-      queryClient.invalidateQueries({ queryKey: ['contas'] });
-      queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
-      setSelectedIds([]);
-    },
-    onError: (err: any) => {
-      alert(err.response?.data?.message || 'Erro ao excluir transações selecionadas.');
-    }
-  });
-
-  const handleDeleteBatch = () => {
-    if (confirm(`Deseja realmente excluir as ${selectedIds.length} transações selecionadas e reverter seus impactos nos saldos das contas?`)) {
-      deleteBatchMutation.mutate(selectedIds);
-    }
+  const setFilter = (key: string, value?: string) => {
+    const next = new URLSearchParams(params);
+    if (key === 'periodo' && value === 'Todos') next.set(key, value);
+    else if (!value || value === 'Todos') next.delete(key);
+    else next.set(key, value);
+    if (key !== 'pagina') next.delete('pagina');
+    setParams(next, { replace: true });
   };
+  const clearFilters = () => setParams(new URLSearchParams({ periodo: 'Todos' }), { replace: true });
 
-  const handleSelectOne = (id: string) => {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
-  };
-
-  const listaTransacoes = data?.transacoes || [];
-
-  // Motor de filtros em tempo real no cliente (instântaneo e super leve)
-  const filteredTransacoes = useMemo(() => {
-    let result = [...listaTransacoes];
-
-    // 1. Busca por termo de descrição
-    if (searchTerm.trim()) {
-      const lower = searchTerm.toLowerCase();
-      result = result.filter(t => t.descricao.toLowerCase().includes(lower));
-    }
-
-    // 2. Filtro por status (Pago vs Pendente)
-    if (statusFilter !== 'Todos') {
-      result = result.filter(t => t.status === statusFilter);
-    }
-
-    // 3. Filtro por conta de lançamento
-    if (contaFilter !== 'Todos') {
-      result = result.filter(t => t.conta_id === contaFilter);
-    }
-
-    // 4. Filtro por período temporal
-    const now = new Date();
-    const contasMap = new Map(contas.map((c: any) => [c.id, c]));
-
-    const getTransactionPaymentMonthAndYear = (t: any): { month: number; year: number } => {
-      const conta = contasMap.get(t.conta_id);
-      const isInvoicePayment = (descricao: string): boolean => {
-        const descLower = (descricao || '').toLowerCase();
-        return descLower.includes('pagamento fatura') || descLower.includes('liquidação fatura') || descLower.includes('liquidacao fatura');
-      };
-
-      if (conta?.tipo === 'CartaoCredito' && conta.cartao_detalhe && !isInvoicePayment(t.descricao)) {
-        const diaFechamento = conta.cartao_detalhe.dia_fechamento;
-        const d = new Date(t.data_transacao);
-        const day = d.getUTCDate();
-        let year = d.getUTCFullYear();
-        let month = d.getUTCMonth(); // 0-indexed
-
-        if (day >= diaFechamento) {
-          month += 1;
-          if (month > 11) {
-            month = 0;
-            year += 1;
-          }
-        }
-
-        // Pagamento ocorre sempre no mês seguinte
-        month += 1;
-        if (month > 11) {
-          month = 0;
-          year += 1;
-        }
-
-        return { month, year };
-      } else {
-        const d = new Date(t.data_transacao);
-        return { month: d.getUTCMonth(), year: d.getUTCFullYear() };
-      }
+  const filters = useMemo<TransactionFilters>(() => {
+    const [year, selectedMonth] = month.split('-').map(Number);
+    return {
+      page, limit: PAGE_SIZE,
+      ...(deferredSearch && { busca: deferredSearch }),
+      ...(status !== 'Todos' && { status: status as 'Pago' | 'Pendente' }),
+      ...(account !== 'Todos' && { conta_id: account }),
+      ...(subcategory !== 'Todos' && { subcategoria_id: subcategory }),
+      ...(period === 'Mes' && { mes: selectedMonth, ano: year }),
+      ...(period === 'Personalizado' && startDate && { inicio: startDate }),
+      ...(period === 'Personalizado' && endDate && { fim: endDate }),
     };
+  }, [deferredSearch, status, account, subcategory, period, month, startDate, endDate, page]);
 
-    if (periodFilter === 'Este Mes') {
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth(); // 0-indexed
-      result = result.filter(t => {
-        const { month, year } = getTransactionPaymentMonthAndYear(t);
-        return year === currentYear && month === currentMonth;
-      });
-    } else if (periodFilter === 'MesEspecifico') {
-      if (selectedMonth) {
-        const [yearStr, monthStr] = selectedMonth.split('-');
-        const targetYear = parseInt(yearStr);
-        const targetMonth = parseInt(monthStr) - 1; // 0-indexed
-        result = result.filter(t => {
-          const { month, year } = getTransactionPaymentMonthAndYear(t);
-          return year === targetYear && month === targetMonth;
-        });
-      }
-    } else if (periodFilter === '30dias') {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(now.getDate() - 30);
-      result = result.filter(t => {
-        const d = new Date(t.data_transacao);
-        return d >= thirtyDaysAgo && d <= now;
-      });
-    } else if (periodFilter === 'Personalizado') {
-      if (customStartDate) {
-        const start = new Date(customStartDate + 'T00:00:00');
-        result = result.filter(t => new Date(t.data_transacao) >= start);
-      }
-      if (customEndDate) {
-        const end = new Date(customEndDate + 'T23:59:59');
-        result = result.filter(t => new Date(t.data_transacao) <= end);
-      }
-    }
+  const { data, isLoading, isError, isFetching, error: queryError, refetch } = useQuery({
+    queryKey: ['transacoes', filters], queryFn: () => transacoesService.listar(filters),
+  });
+  const { data: contas = [] } = useQuery({ queryKey: ['contas'], queryFn: contasService.listar });
+  const { data: categorias = [] } = useQuery({ queryKey: ['categorias'], queryFn: categoriasService.listar });
+  const transactions = useMemo(() => data?.transacoes ?? [], [data?.transacoes]);
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-    // Ordenação garantida por data decrescente
-    return result.sort((a, b) => new Date(b.data_transacao).getTime() - new Date(a.data_transacao).getTime());
-  }, [listaTransacoes, searchTerm, statusFilter, contaFilter, periodFilter, customStartDate, customEndDate, selectedMonth]);
-
-  const visibleIds = useMemo(() => filteredTransacoes.map(t => t.id).filter((id): id is string => !!id), [filteredTransacoes]);
-
-  const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
-  const someSelected = visibleIds.some(id => selectedIds.includes(id)) && !allSelected;
-
-  const handleSelectAll = () => {
-    if (allSelected) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(visibleIds);
-    }
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+    queryClient.invalidateQueries({ queryKey: ['contas'] });
+    queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
   };
+  const toggleMutation = useMutation({
+    mutationFn: transacoesService.toggleStatus,
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['transacoes'] });
+      const snapshots = queryClient.getQueriesData<TransactionListResponse>({ queryKey: ['transacoes'] });
+      queryClient.setQueriesData<TransactionListResponse>({ queryKey: ['transacoes'] }, (current) => current ? {
+        ...current,
+        transacoes: current.transacoes.map((item) => item.id === id ? { ...item, status: item.status === 'Pago' ? 'Pendente' : 'Pago' } : item),
+      } : current);
+      return { snapshots };
+    },
+    onSuccess: (updated, id) => notify(`Status alterado para ${updated.status}.`, 'success', {
+      label: 'Desfazer',
+      onClick: async () => {
+        try {
+          await transacoesService.toggleStatus(id);
+          invalidate();
+          notify('Alteração de status desfeita.', 'info');
+        } catch (error: any) {
+          notify(error.response?.data?.message || 'Não foi possível desfazer a alteração.');
+        }
+      },
+    }),
+    onError: (error: any, _id, context) => {
+      context?.snapshots.forEach(([key, value]) => queryClient.setQueryData(key, value));
+      notify(error.response?.data?.message || 'Erro ao alterar status.');
+    },
+    onSettled: invalidate,
+  });
+  const deleteMutation = useMutation({ mutationFn: transacoesService.excluir, onSuccess: () => { invalidate(); setPendingDelete(null); notify('Lançamento excluído com sucesso.', 'success'); }, onError: (e: any) => notify(e.response?.data?.message || 'Erro ao excluir lançamento.') });
+  const deleteBatch = useMutation({ mutationFn: transacoesService.excluirEmLote, onSuccess: () => { invalidate(); setSelectedIds([]); setConfirmBatchDelete(false); notify('Lançamentos excluídos com sucesso.', 'success'); }, onError: (e: any) => notify(e.response?.data?.message || 'Erro ao excluir lançamentos.') });
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Fluxo de Caixa</h1>
-          <p className="text-muted-foreground">Monitore e filtre suas receitas, despesas e transferências.</p>
-        </div>
-        <div className="flex items-center gap-2.5">
-          <SincronizarOFXModal />
-          <ImportarCSVModal />
-          <NovaTransacaoModal />
+  const remove = (item: TransacaoData) => item.id && setPendingDelete(item);
+  const toggleSelected = (id: string) => setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  const activeFilters = [
+    deferredSearch && { key: 'busca', label: `Busca: ${deferredSearch}` },
+    status !== 'Todos' && { key: 'status', label: status },
+    account !== 'Todos' && { key: 'conta', label: contas.find((item) => item.id === account)?.nome ?? 'Conta' },
+    subcategory !== 'Todos' && { key: 'subcategoria', label: `Categoria: ${categorias.flatMap((item) => item.subcategorias).find((item) => item.id === subcategory)?.nome ?? 'selecionada'}` },
+    period === 'Mes' && { key: 'periodo', label: `Mês: ${month}` },
+    period === 'Personalizado' && { key: 'periodo', label: `Período: ${startDate || 'início'} até ${endDate || 'hoje'}` },
+  ].filter(Boolean) as Array<{ key: string; label: string }>;
+
+  const grouped = useMemo(() => transactions.reduce<Record<string, TransacaoData[]>>((result, item) => {
+    const key = format(new Date(item.data_transacao), "dd 'de' MMMM", { locale: ptBR });
+    (result[key] ??= []).push(item); return result;
+  }, {}), [transactions]);
+
+  const accountLabel = (item: TransacaoData) => item.tipo === 'Transferencia'
+    ? `${item.conta?.nome ?? 'Origem'} → ${transferDestination(item)?.conta.nome ?? 'Destino'}`
+    : item.conta?.nome ?? 'N/A';
+
+  const typeStyle = (item: TransacaoData) => item.tipo === 'Receita'
+    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+    : item.tipo === 'Despesa'
+      ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+      : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300';
+
+  const transactionActions = (item: TransacaoData) => <div className="flex items-center gap-1">
+    <NovaTransacaoModal editItem={item} />
+    <Button aria-label={`Excluir ${cleanDescription(item)}`} variant="ghost" size="icon" onClick={() => remove(item)} className="h-9 w-9 text-rose-600"><Trash2 /></Button>
+  </div>;
+
+  return <div className="space-y-5">
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div><h1 className="text-3xl font-bold tracking-tight">Fluxo de Caixa</h1><p className="text-muted-foreground">Monitore receitas, despesas e transferências.</p></div>
+      <div className="flex flex-wrap items-center gap-2">
+        <NovaTransacaoModal />
+        <div className="relative">
+          <Button variant="outline" onClick={() => setShowImport((value) => !value)} className="gap-2"><FileDown /> Importar</Button>
+          {showImport && <div className="absolute right-0 top-11 z-30 w-52 space-y-1 rounded-xl border bg-background p-2 shadow-xl">
+            <SincronizarOFXModal trigger={<Button variant="ghost" className="w-full justify-start">Sincronizar OFX</Button>} />
+            <ImportarCSVModal trigger={<Button variant="ghost" className="w-full justify-start">Importar CSV</Button>} />
+          </div>}
         </div>
       </div>
+    </header>
 
-      {/* Painel de Filtros Avançados (SaaS Premium Style com Collapse) */}
-      <Card className="border border-slate-200/50 dark:border-slate-800/60 shadow-sm bg-card rounded-2xl transition-all duration-300">
-        <CardContent className="p-5">
-          {/* Header clicável para toggle collapse */}
-          <div 
-            className={`flex items-center justify-between cursor-pointer select-none transition-all duration-300 ${
-              showFilters ? 'pb-3 border-b border-slate-100 dark:border-slate-800/60' : ''
-            }`}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <div className="flex items-center gap-2">
-              <Filter className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
-              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Filtros de Busca</h3>
-            </div>
-            <div className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60">
-              {showFilters ? <ChevronUp className="h-4.5 w-4.5" /> : <ChevronDown className="h-4.5 w-4.5" />}
-            </div>
-          </div>
+    <Card><CardContent className="p-4">
+      <button className="flex w-full items-center justify-between text-sm font-semibold" onClick={() => setShowFilters((value) => !value)}><span className="flex items-center gap-2"><Filter /> Filtros</span><span>{showFilters ? 'Ocultar' : 'Mostrar'}</span></button>
+      {showFilters && <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <div><Label htmlFor="transaction-search">Descrição</Label><div className="relative mt-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input id="transaction-search" className="pl-9" value={search} onChange={(event) => setFilter('busca', event.target.value)} placeholder="Buscar..." /></div></div>
+        <div><Label>Status</Label><Select value={status} onValueChange={(value) => setFilter('status', value)}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem><SelectItem value="Pago">Pago</SelectItem><SelectItem value="Pendente">Pendente</SelectItem></SelectContent></Select></div>
+        <div><Label>Conta</Label><Select value={account} onValueChange={(value) => setFilter('conta', value)}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas</SelectItem>{contas.map((item) => <SelectItem key={item.id} value={item.id!}>{item.nome}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label>Subcategoria</Label><Select value={subcategory} onValueChange={(value) => setFilter('subcategoria', value)}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas</SelectItem>{categorias.flatMap((category) => category.subcategorias.map((item) => <SelectItem key={item.id} value={item.id}>{category.nome} · {item.nome}</SelectItem>))}</SelectContent></Select></div>
+        <div><Label>Período</Label><Select value={period} onValueChange={(value) => setFilter('periodo', value)}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Mes">Mês específico</SelectItem><SelectItem value="Personalizado">Período personalizado</SelectItem><SelectItem value="Todos">Todo o histórico</SelectItem></SelectContent></Select></div>
+        {period === 'Mes' && <div><Label htmlFor="transaction-month">Mês</Label><Input id="transaction-month" type="month" className="mt-1" value={month} onChange={(event) => setFilter('mes', event.target.value)} /></div>}
+        {period === 'Personalizado' && <><div><Label htmlFor="transaction-start">Data inicial</Label><Input id="transaction-start" type="date" className="mt-1" value={startDate} max={endDate || undefined} onChange={(event) => setFilter('inicio', event.target.value)} /></div><div><Label htmlFor="transaction-end">Data final</Label><Input id="transaction-end" type="date" className="mt-1" value={endDate} min={startDate || undefined} onChange={(event) => setFilter('fim', event.target.value)} /></div></>}
+      </div>}
+      <div className="mt-3 flex flex-wrap items-center gap-2">{activeFilters.map((filter) => <button key={filter.key} onClick={() => filter.key === 'periodo' ? setFilter('periodo', 'Todos') : setFilter(filter.key)} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs font-medium">{filter.label}<X className="h-3 w-3" /></button>)}<Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button></div>
+    </CardContent></Card>
 
-          {showFilters && (
-            <div className="space-y-4 pt-4 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* Campo 1: Termo de Busca */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="search" className="text-xs font-semibold text-slate-500 dark:text-slate-400">Descrição</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <Input
-                      id="search"
-                      placeholder="Buscar transação..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9 h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus-visible:ring-emerald-600"
-                    />
-                  </div>
-                </div>
+    <div className="flex items-center justify-between text-sm text-muted-foreground"><span>{total} {total === 1 ? 'lançamento encontrado' : 'lançamentos encontrados'}</span><span>Página {page} de {totalPages}</span></div>
 
-                {/* Campo 2: Filtro de Status */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Status</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus:ring-emerald-600">
-                      <SelectValue placeholder="Todos os Status" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
-                      <SelectItem value="Todos" className="rounded-lg">Todos os Status</SelectItem>
-                      <SelectItem value="Pago" className="rounded-lg">Pago</SelectItem>
-                      <SelectItem value="Pendente" className="rounded-lg">Pendente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+    {isLoading ? <TransactionListSkeleton />
+      : isError ? <QueryErrorState error={queryError} title="Não foi possível carregar os lançamentos." retrying={isFetching} onRetry={() => refetch()} />
+      : transactions.length === 0 ? <EmptyState icon={CreditCard} title={period === 'Todos' && activeFilters.length === 0 ? 'Registre seu primeiro lançamento' : 'Nenhum lançamento encontrado'} description={period === 'Todos' && activeFilters.length === 0 ? 'Registre uma receita, despesa ou transferência para começar a acompanhar seu fluxo de caixa.' : 'Não há lançamentos que correspondam aos filtros atuais. Limpe os filtros ou registre uma nova movimentação.'} action={<>{activeFilters.length > 0 && <Button variant="outline" onClick={clearFilters}>Limpar filtros</Button>}<NovaTransacaoModal /></>} />
+      : <>
+        <div className="space-y-5 md:hidden">{Object.entries(grouped).map(([date, items]) => <section key={date}><h2 className="mb-2 text-sm font-semibold capitalize text-muted-foreground">{date}</h2><div className="space-y-2">{items.map((item) => <Card key={item.id}><CardContent className="flex gap-3 p-4"><input aria-label={`Selecionar ${cleanDescription(item)}`} type="checkbox" checked={!!item.id && selectedIds.includes(item.id)} onChange={() => item.id && toggleSelected(item.id)} /><div className="min-w-0 flex-1"><span className={`mb-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${typeStyle(item)}`}>{item.tipo === 'Transferencia' ? 'Transferência' : item.tipo}</span><p className="truncate font-semibold">{cleanDescription(item)}</p><p className="mt-1 truncate text-xs text-muted-foreground">{accountLabel(item)}</p><button title="Clique para alterar o status" aria-label={`Alterar status de ${cleanDescription(item)}`} onClick={() => item.id && toggleMutation.mutate(item.id)} className="mt-2 cursor-pointer rounded-full border px-2 py-1 text-xs font-medium transition-colors hover:border-primary hover:bg-muted hover:text-primary">{item.status}</button></div><div className="text-right"><p className={`font-bold ${item.tipo === 'Despesa' ? 'text-rose-600' : item.tipo === 'Receita' ? 'text-emerald-600' : 'text-blue-600'}`}>{item.tipo === 'Despesa' ? '-' : item.tipo === 'Receita' ? '+' : ''}{brl(Number(item.valor))}</p>{transactionActions(item)}</div></CardContent></Card>)}</div></section>)}</div>
+        <Card className="hidden overflow-hidden md:block"><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead /><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Conta</TableHead><TableHead>Tipo</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Ações</TableHead></TableRow></TableHeader><TableBody>{transactions.map((item) => <TableRow key={item.id}><TableCell><input aria-label={`Selecionar ${cleanDescription(item)}`} type="checkbox" checked={!!item.id && selectedIds.includes(item.id)} onChange={() => item.id && toggleSelected(item.id)} /></TableCell><TableCell>{format(new Date(item.data_transacao), 'dd/MM/yyyy')}</TableCell><TableCell className="font-semibold">{cleanDescription(item)}</TableCell><TableCell><span className="flex items-center gap-1"><CreditCard className="h-4 w-4" />{accountLabel(item)}</span></TableCell><TableCell><span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${typeStyle(item)}`}>{item.tipo === 'Transferencia' ? 'Transferência' : item.tipo}</span></TableCell><TableCell><button title="Clique para alterar o status" aria-label={`Alterar status de ${cleanDescription(item)}`} className="cursor-pointer rounded-full border px-2 py-1 text-xs font-medium transition-all hover:border-primary hover:bg-muted hover:text-primary hover:shadow-sm" onClick={() => item.id && toggleMutation.mutate(item.id)}>{item.status === 'Pago' ? <CheckCircle2 className="inline h-4 w-4 text-emerald-600" /> : <Clock className="inline h-4 w-4 text-amber-600" />} {item.status}</button></TableCell><TableCell className="text-right font-bold">{item.tipo === 'Despesa' ? '-' : item.tipo === 'Receita' ? '+' : ''}{brl(Number(item.valor))}</TableCell><TableCell>{transactionActions(item)}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
+      </>}
 
-                {/* Campo 3: Filtro de Conta */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Conta Bancária</Label>
-                  <Select value={contaFilter} onValueChange={setContaFilter}>
-                    <SelectTrigger className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus:ring-emerald-600">
-                      <SelectValue placeholder="Todas as Contas" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
-                      <SelectItem value="Todos" className="rounded-lg">Todas as Contas</SelectItem>
-                      {contas.map((c) => (
-                        <SelectItem key={c.id} value={c.id!} className="rounded-lg">
-                          {c.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+    <div className="flex justify-center gap-2"><Button variant="outline" disabled={page <= 1} onClick={() => setFilter('pagina', String(page - 1))}><ChevronLeft /> Anterior</Button><Button variant="outline" disabled={page >= totalPages} onClick={() => setFilter('pagina', String(page + 1))}>Próxima <ChevronRight /></Button></div>
 
-                {/* Campo 4: Período de Datas */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Período</Label>
-                  <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                    <SelectTrigger className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/80 focus:ring-emerald-600">
-                      <SelectValue placeholder="Período" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
-                      <SelectItem value="Todos" className="rounded-lg">Todo o Histórico</SelectItem>
-                      <SelectItem value="Este Mes" className="rounded-lg">Mês Atual</SelectItem>
-                      <SelectItem value="MesEspecifico" className="rounded-lg">Selecionar Mês</SelectItem>
-                      <SelectItem value="30dias" className="rounded-lg">Últimos 30 Dias</SelectItem>
-                      <SelectItem value="Personalizado" className="rounded-lg">Período Personalizado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Seletor de Mês Específico */}
-              {periodFilter === 'MesEspecifico' && (
-                <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/50 transition-all duration-300 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="space-y-1.5 flex-1">
-                    <Label htmlFor="monthSelect" className="text-xs font-semibold text-slate-500 dark:text-slate-400">Escolha o Mês e Ano</Label>
-                    <Input
-                      id="monthSelect"
-                      type="month"
-                      value={selectedMonth}
-                      onChange={(e) => setSelectedMonth(e.target.value)}
-                      className="h-10 rounded-xl bg-background border-slate-200/60 dark:border-slate-800/80"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Inputs de Data Customizados (exibidos condicionalmente) */}
-              {periodFilter === 'Personalizado' && (
-                <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/50 transition-all duration-300 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="space-y-1.5 flex-1">
-                    <Label htmlFor="startDate" className="text-xs font-semibold text-slate-500 dark:text-slate-400">Data Inicial</Label>
-                    <Input
-                      id="startDate"
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="h-10 rounded-xl bg-background border-slate-200/60 dark:border-slate-800/80"
-                    />
-                  </div>
-                  <div className="space-y-1.5 flex-1">
-                    <Label htmlFor="endDate" className="text-xs font-semibold text-slate-500 dark:text-slate-400">Data Final</Label>
-                    <Input
-                      id="endDate"
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="h-10 rounded-xl bg-background border-slate-200/60 dark:border-slate-800/80"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Tabela de Transações */}
-      <Card className="border border-slate-200/50 dark:border-slate-800/60 shadow-sm rounded-2xl overflow-hidden bg-card">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-slate-50/50 dark:bg-slate-900/40">
-              <TableRow>
-                <TableHead className="w-12 text-center">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    ref={input => {
-                      if (input) {
-                        input.indeterminate = someSelected;
-                      }
-                    }}
-                    onChange={handleSelectAll}
-                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
-                  />
-                </TableHead>
-                <TableHead className="font-bold text-slate-700 dark:text-slate-300">Data</TableHead>
-                <TableHead className="font-bold text-slate-700 dark:text-slate-300">Descrição</TableHead>
-                <TableHead className="font-bold text-slate-700 dark:text-slate-300">Conta</TableHead>
-                <TableHead className="font-bold text-slate-700 dark:text-slate-300">Tipo</TableHead>
-                <TableHead className="font-bold text-slate-700 dark:text-slate-300">Status</TableHead>
-                <TableHead className="font-bold text-slate-700 dark:text-slate-300 text-right">Valor</TableHead>
-                <TableHead className="font-bold text-slate-700 dark:text-slate-300 text-center w-20">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center h-32 text-slate-400 font-semibold">
-                    Carregando transações...
-                  </TableCell>
-                </TableRow>
-              ) : isError ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center h-32 text-rose-500 font-semibold">
-                    Erro ao carregar dados. (Verifique sua conexão / Token JWT)
-                  </TableCell>
-                </TableRow>
-              ) : filteredTransacoes.length > 0 ? (
-                filteredTransacoes.map((t: TransacaoData) => (
-                  <TableRow key={t.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10 transition-colors">
-                    <TableCell className="text-center w-12">
-                      {t.id && (
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(t.id)}
-                          onChange={() => handleSelectOne(t.id!)}
-                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-slate-600 dark:text-slate-300 font-medium">
-                      {format(new Date(t.data_transacao), 'dd/MM/yyyy', { locale: ptBR })}
-                    </TableCell>
-                    <TableCell className="font-semibold text-slate-800 dark:text-slate-100">{t.descricao}</TableCell>
-                    <TableCell className="font-semibold text-slate-400 dark:text-slate-500">
-                      <div className="flex items-center gap-1.5">
-                        <CreditCard className="h-3.5 w-3.5" />
-                        {t.conta?.nome || 'N/A'}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        t.tipo === 'Receita' || (t.tipo === 'Transferencia' && t.descricao.includes('[Entrada]')) 
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
-                          : t.tipo === 'Despesa' || (t.tipo === 'Transferencia' && t.descricao.includes('[Saída]')) 
-                          ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' 
-                          : 'bg-slate-100 text-slate-600 dark:bg-slate-850 dark:text-slate-300'
-                      }`}>
-                        {t.tipo === 'Transferencia' 
-                          ? (t.descricao.includes('[Saída]') ? 'Transf. Saída' : 'Transf. Entrada')
-                          : t.tipo
-                        }
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <button
-                        onClick={() => t.id && toggleMutation.mutate(t.id)}
-                        disabled={toggleMutation.isPending}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold cursor-pointer border transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
-                          t.status === 'Pago' 
-                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20 dark:text-emerald-400' 
-                            : 'bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/20 dark:text-amber-400'
-                        }`}
-                      >
-                        {t.status === 'Pago' ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <Clock className="h-3.5 w-3.5 text-amber-500" />}
-                        {t.status}
-                      </button>
-                    </TableCell>
-                    <TableCell className={`text-right font-bold text-sm ${
-                      t.tipo === 'Despesa' || (t.tipo === 'Transferencia' && t.descricao.includes('[Saída]'))
-                        ? 'text-rose-600 dark:text-rose-400' 
-                        : t.tipo === 'Receita' || (t.tipo === 'Transferencia' && t.descricao.includes('[Entrada]'))
-                        ? 'text-emerald-600 dark:text-emerald-400' 
-                        : 'text-slate-800 dark:text-slate-100'
-                    }`}>
-                      {t.tipo === 'Despesa' || (t.tipo === 'Transferencia' && t.descricao.includes('[Saída]')) ? '-' : '+'}
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.valor)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <NovaTransacaoModal editItem={t} />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => t.id && handleDelete(t.id, t.descricao)}
-                          className="h-8 w-8 text-rose-600 hover:text-rose-800 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/30 rounded-lg"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center h-32 text-slate-400 font-semibold">
-                    Nenhuma transação atende aos filtros selecionados.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Barra de Ações em Lote (SaaS Premium Style) */}
-      {selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-slate-955/95 backdrop-blur-md border border-slate-800 dark:border-slate-850 text-slate-100 px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-8 fade-in duration-300">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center justify-center bg-emerald-600 text-white font-bold text-xs px-2.5 py-1 rounded-full">
-              {selectedIds.length}
-            </span>
-            <span className="text-sm font-semibold">
-              {selectedIds.length === 1 ? 'transação selecionada' : 'transações selecionadas'}
-            </span>
-          </div>
-          
-          <div className="h-4 w-px bg-slate-800" />
-          
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedIds([])}
-              className="text-xs font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-xl"
-            >
-              Desmarcar
-            </Button>
-            <Button
-              size="sm"
-              disabled={deleteBatchMutation.isPending}
-              onClick={handleDeleteBatch}
-              className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold gap-2 px-4 py-2 rounded-xl transition-all shadow-md hover:shadow-rose-600/10 active:scale-[0.98]"
-            >
-              {deleteBatchMutation.isPending ? (
-                <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white"></div>
-              ) : (
-                <Trash2 className="h-3.5 w-3.5" />
-              )}
-              Excluir Selecionadas
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    {selectedIds.length > 0 && <div className="fixed inset-x-3 bottom-3 z-40 flex items-center justify-between gap-3 rounded-2xl bg-slate-900 p-3 text-white shadow-2xl md:left-1/2 md:right-auto md:-translate-x-1/2"><span className="text-sm font-semibold">{selectedIds.length} selecionado(s)</span><div className="flex gap-2"><Button variant="ghost" onClick={() => setSelectedIds([])}>Desmarcar</Button><Button variant="destructive" disabled={deleteBatch.isPending} onClick={() => setConfirmBatchDelete(true)}><Trash2 /> Excluir</Button></div></div>}
+    <ConfirmActionDialog
+      open={!!pendingDelete}
+      onOpenChange={(open) => !open && setPendingDelete(null)}
+      title="Excluir lançamento?"
+      description={`O lançamento “${pendingDelete ? cleanDescription(pendingDelete) : ''}” será removido permanentemente.`}
+      impact={pendingDelete?.tipo === 'Transferencia' ? 'As movimentações de origem e destino serão removidas e os saldos das duas contas serão recalculados.' : 'O impacto deste lançamento será revertido no saldo da conta e, quando aplicável, na fatura do cartão.'}
+      pending={deleteMutation.isPending}
+      onConfirm={() => pendingDelete?.id && deleteMutation.mutate(pendingDelete.id)}
+    />
+    <ConfirmActionDialog
+      open={confirmBatchDelete}
+      onOpenChange={setConfirmBatchDelete}
+      title={`Excluir ${selectedIds.length} lançamento(s)?`}
+      description="Os lançamentos selecionados serão removidos permanentemente."
+      impact="Os impactos nos saldos, faturas e transferências relacionadas serão revertidos."
+      pending={deleteBatch.isPending}
+      onConfirm={() => deleteBatch.mutate(selectedIds)}
+    />
+  </div>;
 }

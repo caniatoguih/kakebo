@@ -1,72 +1,42 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { api } from '@/services/api';
 import { authService } from '@/services/authService';
 
-export interface UserData {
-  id: string;
-  nome: string;
-  email: string;
-}
+export interface UserData { id: string; nome: string; email: string }
 
 interface AuthContextType {
-  token: string | null;
   usuario: UserData | null;
-  login: (token: string, usuario: UserData) => void;
-  logout: () => void;
+  login: (usuario: UserData) => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('@kakebo:token'));
-  const [usuario, setUsuario] = useState<UserData | null>(() => {
-    const stored = localStorage.getItem('@kakebo:usuario');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [usuario, setUsuario] = useState<UserData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (token) {
-      localStorage.setItem('@kakebo:token', token);
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      localStorage.removeItem('@kakebo:token');
-      delete api.defaults.headers.common['Authorization'];
-    }
-  }, [token]);
+    authService.me().then(setUsuario).catch(() => setUsuario(null)).finally(() => setIsLoading(false));
+    const unauthorized = () => setUsuario(null);
+    window.addEventListener('kakebo:unauthorized', unauthorized);
+    return () => window.removeEventListener('kakebo:unauthorized', unauthorized);
+  }, []);
 
-  useEffect(() => {
-    if (usuario) {
-      localStorage.setItem('@kakebo:usuario', JSON.stringify(usuario));
-    } else {
-      localStorage.removeItem('@kakebo:usuario');
-    }
-  }, [usuario]);
-
-  const login = (newToken: string, newUsuario: UserData) => {
-    setToken(newToken);
-    setUsuario(newUsuario);
+  const logout = async () => {
+    try { await authService.logout(); } finally { setUsuario(null); }
   };
-
-  const logout = () => {
-    setToken(null);
-    setUsuario(null);
-  };
-
-  useEffect(() => {
-    if (token && !usuario) {
-      authService.me()
-        .then(u => setUsuario(u))
-        .catch(err => {
-          console.error('Erro ao buscar perfil do usuário:', err);
-          logout();
-        });
-    }
-  }, [token, usuario]);
 
   return (
-    <AuthContext.Provider value={{ token, usuario, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{
+      usuario,
+      login: setUsuario,
+      logout,
+      isAuthenticated: Boolean(usuario),
+      isLoading,
+    }}>
       {children}
     </AuthContext.Provider>
   );

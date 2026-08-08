@@ -4,7 +4,18 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const Select = SelectPrimitive.Root
+type SelectProps = React.ComponentProps<typeof SelectPrimitive.Root>
+
+function Select(props: SelectProps) {
+  // Radix considera `undefined` como não controlado. Formulários assíncronos
+  // frequentemente começam sem valor e o preenchem depois; normalize esse
+  // caso para manter o componente controlado durante toda a sua vida.
+  if (Object.prototype.hasOwnProperty.call(props, "value")) {
+    return <SelectPrimitive.Root {...props} value={props.value ?? ""} />
+  }
+
+  return <SelectPrimitive.Root {...props} />
+}
 
 const SelectGroup = SelectPrimitive.Group
 

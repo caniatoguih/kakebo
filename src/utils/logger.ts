@@ -24,4 +24,14 @@ function createPrettyStream() {
   }
 }
 
-export const logger = pino({ level: process.env.LOG_LEVEL || 'info' }, createPrettyStream());
+export const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  redact: {
+    paths: [
+      'req.headers.authorization', 'req.headers.cookie', 'req.headers.x-csrf-token',
+      'req.headers.x-metrics-token', 'res.headers.set-cookie',
+      'password', 'senha', 'senha_hash', 'token', 'authorization', 'cookie',
+    ],
+    censor: '[REDACTED]',
+  },
+}, createPrettyStream());

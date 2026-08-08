@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
+import { getJwtSecret } from '../config/security';
+import { clearSessionCookies, setSessionCookies } from '../utils/cookies';
 
 export class AuthController {
   login = async (req: Request, res: Response) => {
@@ -19,16 +21,15 @@ export class AuthController {
       return res.status(401).json({ message: 'Credenciais inválidas.' });
     }
 
-    const secret = process.env.JWT_SECRET || 'secret';
-    const token = jwt.sign({ id: usuario.id }, secret, { expiresIn: '1d' });
+    const token = jwt.sign({ id: usuario.id }, getJwtSecret(), { expiresIn: '1d' });
+    setSessionCookies(res, token);
 
     return res.json({
       usuario: {
         id: usuario.id,
         nome: usuario.nome,
         email: usuario.email
-      },
-      token
+      }
     });
   };
 
@@ -56,7 +57,7 @@ export class AuthController {
       return res.status(400).json({ message: 'E-mail já cadastrado.' });
     }
 
-    const senha_hash = await bcrypt.hash(senha, 8);
+    const senha_hash = await bcrypt.hash(senha, 12);
 
     const usuario = await prisma.usuario.create({
       data: {
@@ -66,16 +67,17 @@ export class AuthController {
       }
     });
 
-    const secret = process.env.JWT_SECRET || 'secret';
-    const token = jwt.sign({ id: usuario.id }, secret, { expiresIn: '1d' });
-
     return res.status(201).json({
       usuario: {
         id: usuario.id,
         nome: usuario.nome,
         email: usuario.email
-      },
-      token
+      }
     });
+  };
+
+  logout = async (_req: Request, res: Response) => {
+    clearSessionCookies(res);
+    return res.status(204).send();
   };
 }
