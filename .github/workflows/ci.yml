@@ -156,16 +156,7 @@ jobs:
           cache: 'npm'
       - name: Install backend dependencies
         run: npm ci
-      - name: Validate production database secret
-        shell: bash
-        run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "GitHub secret DB_URL is not configured."
-            exit 1
-          fi
       - name: Validate Prisma schema
         run: npx prisma validate
-      - name: Apply pending migrations to Neon
-        run: npx prisma migrate deploy
-      - name: Confirm migration status
-        run: npx prisma migrate status
+      - name: Baseline or apply pending migrations to Neon
+        run: bash scripts/migrate-production.sh
