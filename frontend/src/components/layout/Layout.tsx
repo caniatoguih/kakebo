@@ -46,7 +46,7 @@ export function Layout() {
               </div>
               <span className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100 font-sans">kakebo</span>
             </div>
-            <Button variant="ghost" size="icon" className="md:hidden text-slate-500" onClick={() => setIsMobileOpen(false)}>
+            <Button aria-label="Fechar menu" variant="ghost" size="icon" className="md:hidden text-slate-600" onClick={() => setIsMobileOpen(false)}>
               <X className="h-5 w-5" />
             </Button>
           </div>
@@ -64,11 +64,11 @@ export function Layout() {
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 border-l-[3px]",
                     isActive 
-                      ? "bg-emerald-50 text-emerald-600 border-l-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-l-emerald-500 font-bold shadow-[0_4px_12px_rgba(5,150,105,0.03)]" 
-                      : "text-slate-400 border-l-transparent hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/40"
+                      ? "bg-emerald-50 text-emerald-800 border-l-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300 dark:border-l-emerald-500 font-bold shadow-[0_4px_12px_rgba(5,150,105,0.03)]"
+                      : "text-slate-600 border-l-transparent hover:text-slate-900 dark:text-slate-300 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900/40"
                   )}
                 >
-                  <item.icon className={cn("h-4.5 w-4.5 transition-colors", isActive ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400")} />
+                  <item.icon className={cn("h-4.5 w-4.5 transition-colors", isActive ? "text-emerald-700 dark:text-emerald-300" : "text-slate-500 dark:text-slate-400")} />
                   {item.name}
                 </Link>
               )
@@ -86,7 +86,7 @@ export function Layout() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{usuario.nome}</p>
-                  <p className="text-[10px] font-semibold text-slate-400 truncate">{usuario.email}</p>
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 truncate">{usuario.email}</p>
                 </div>
               </div>
             )}
@@ -95,7 +95,7 @@ export function Layout() {
               variant="ghost"
               size="sm"
               onClick={logout}
-              className="w-full justify-start gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/20 dark:hover:bg-rose-950/20 transition-all duration-300"
+              className="w-full justify-start gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50/20 dark:hover:bg-rose-950/20 transition-all duration-300"
             >
               <LogOut className="h-4.5 w-4.5" />
               Sair da Conta
@@ -111,11 +111,11 @@ export function Layout() {
               <Button aria-label="Abrir menu" variant="ghost" size="icon" className="rounded-lg" onClick={() => setIsMobileOpen(true)}>
                 <Menu className="h-5 w-5" />
               </Button>
-              <div className="ml-3"><p className="text-[11px] font-medium text-muted-foreground">Você está em</p><p className="text-base font-bold text-slate-800 dark:text-slate-100">{currentItem.name}</p></div>
+              <div className="ml-3"><p className="text-xs font-medium text-muted-foreground">Você está em</p><p className="text-base font-bold text-slate-800 dark:text-slate-100">{currentItem.name}</p></div>
             </div>
             
             <div className="flex flex-1 justify-end items-center gap-4">
-              <Button variant="ghost" size="sm" onClick={logout} className="gap-2 rounded-xl text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/20 dark:hover:bg-rose-950/20 transition-all duration-300 font-semibold">
+              <Button variant="ghost" size="sm" onClick={logout} className="gap-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50/20 dark:hover:bg-rose-950/20 transition-all duration-300 font-semibold">
                 <LogOut className="h-4 w-4" />
                 Sair
               </Button>
@@ -131,7 +131,7 @@ export function Layout() {
           <nav aria-label="Navegação principal mobile" className="absolute inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t bg-card/95 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden">
             {navItems.filter((item) => item.primary).map((item) => {
               const active = location.pathname.startsWith(item.path);
-              return <Link key={item.path} to={item.path} aria-current={active ? 'page' : undefined} className={cn('flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-semibold', active ? 'text-emerald-600' : 'text-muted-foreground hover:bg-muted hover:text-foreground')}>
+              return <Link key={item.path} to={item.path} aria-current={active ? 'page' : undefined} className={cn('flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-1 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', active ? 'text-emerald-800 dark:text-emerald-300' : 'text-muted-foreground hover:bg-muted hover:text-foreground')}>
                 <item.icon className="h-5 w-5" /><span>{item.shortName}</span>
               </Link>;
             })}

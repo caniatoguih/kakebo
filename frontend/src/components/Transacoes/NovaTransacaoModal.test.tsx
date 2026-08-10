@@ -91,6 +91,43 @@ describe('NovaTransacaoModal', () => {
     expect(screen.getByText(/750,00/)).toBeInTheDocument();
   });
 
+  it('registra uma despesa parcelada dividindo o valor entre os meses', async () => {
+    renderModal();
+    await userEvent.click(screen.getByRole('button', { name: 'Nova Transação' }));
+    await waitFor(() => expect(mocks.contas).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Curso anual' } });
+    fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '120000' } });
+    await chooseSelect(1, /Conta principal/);
+    await userEvent.click(screen.getByLabelText('Frequência do lançamento'));
+    await userEvent.click(await screen.findByRole('option', { name: /Parcelado/ }));
+    fireEvent.change(screen.getByLabelText('Número de Parcelas'), { target: { value: '12' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar Transação' }));
+
+    await waitFor(() => expect(mocks.criar).toHaveBeenCalledWith(expect.objectContaining({
+      tipo: 'Despesa', valor: 1200, total_parcelas: 12, recorrente: false,
+    })));
+  });
+
+  it('registra uma receita recorrente repetindo o valor integral por mês', async () => {
+    renderModal();
+    await userEvent.click(screen.getByRole('button', { name: 'Nova Transação' }));
+    await waitFor(() => expect(mocks.contas).toHaveBeenCalled());
+
+    await userEvent.click(screen.getByRole('button', { name: /Receita.*Dinheiro que entrou/i }));
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Contrato mensal' } });
+    fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '250000' } });
+    await chooseSelect(1, /Conta principal/);
+    await userEvent.click(screen.getByLabelText('Frequência do lançamento'));
+    await userEvent.click(await screen.findByRole('option', { name: /Recorrente/ }));
+    fireEvent.change(screen.getByLabelText('Duração da Recorrência (meses)'), { target: { value: '6' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar Transação' }));
+
+    await waitFor(() => expect(mocks.criar).toHaveBeenCalledWith(expect.objectContaining({
+      tipo: 'Receita', valor: 2500, total_parcelas: 6, recorrente: true,
+    })));
+  });
+
   it('orienta e registra uma transferência com origem e destino distintos', async () => {
     renderModal();
     await userEvent.click(screen.getByRole('button', { name: 'Nova Transação' }));
@@ -100,6 +137,7 @@ describe('NovaTransacaoModal', () => {
     expect(screen.getByText('Conta de Origem')).toBeInTheDocument();
     expect(screen.getByText('Conta de Destino')).toBeInTheDocument();
     expect(screen.queryByText('Subcategoria (Opcional)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Frequência do lançamento')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Aplicação mensal' } });
     fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '20000' } });

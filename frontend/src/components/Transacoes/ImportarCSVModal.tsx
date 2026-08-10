@@ -436,9 +436,9 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
         {step === 1 && (
           <div className="space-y-5 py-4">
             <div className="space-y-2">
-              <Label>Conta Bancária Padrão (Fallback)</Label>
+              <Label htmlFor="csv-default-account">Conta Bancária Padrão (Fallback)</Label>
               <Select value={contaId} onValueChange={setContaId}>
-                <SelectTrigger>
+                <SelectTrigger id="csv-default-account">
                   <SelectValue placeholder="Selecione a conta padrão de destino" />
                 </SelectTrigger>
                 <SelectContent>
@@ -451,13 +451,14 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
 
             <div className="space-y-2">
               <div className="flex justify-between items-end">
-                <Label>Arquivo CSV do Banco/Excel</Label>
+                <Label htmlFor="csv-file">Arquivo CSV do Banco/Excel</Label>
                 <a href="/exemplo_importacao.csv" download className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
                   <Download className="h-3.5 w-3.5" /> Baixar arquivo de exemplo
                 </a>
               </div>
               <div className="border-2 border-dashed border-border rounded-lg p-8 flex flex-col items-center justify-center gap-2 hover:bg-accent/50 transition-colors cursor-pointer relative">
                 <input 
+                  id="csv-file"
                   type="file" 
                   accept=".csv" 
                   onChange={handleFileChange}
@@ -468,7 +469,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                 <p className="text-sm font-medium">{file ? file.name : "Clique ou arraste o arquivo .csv aqui"}</p>
                 <p className="text-xs text-muted-foreground">{file ? "Arquivo pronto para mapeamento" : "O separador (, ou ;) e o encoding (UTF-8 ou ISO-8859-1) serão auto-detectados"}</p>
                 {!contaId && (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-500 mt-2 font-medium">
+                  <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-300">
                     <AlertTriangle className="h-3.5 w-3.5" />
                     Selecione uma conta bancária antes de enviar.
                   </div>
@@ -492,7 +493,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                   <strong className="text-foreground">Subcategorias:</strong> Se o arquivo contiver uma coluna com subcategorias, você poderá mapeá-la para autodeclaração.
                 </li>
                 <li>
-                  <strong className="text-foreground">Transferências entre Contas:</strong> Ao mudar o tipo de uma linha para <span className="text-amber-600 dark:text-amber-500 font-medium">Transferência</span> no Passo 3, você poderá escolher uma conta de destino. O saldo das duas contas será atualizado de forma consistente no banco.
+                  <strong className="text-foreground">Transferências entre Contas:</strong> Ao mudar o tipo de uma linha para <span className="font-medium text-amber-800 dark:text-amber-300">Transferência</span> no Passo 3, você poderá escolher uma conta de destino. O saldo das duas contas será atualizado de forma consistente no banco.
                 </li>
               </ul>
             </div>
@@ -511,9 +512,9 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Coluna de Data *</Label>
+                <Label htmlFor="csv-date-column">Coluna de Data *</Label>
                 <Select value={colData} onValueChange={setColData}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectTrigger id="csv-date-column"><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
                     {parsedCSV.headers.map((h, i) => (
                       <SelectItem key={i} value={i.toString()}>{h || `Coluna ${i+1}`}</SelectItem>
@@ -523,9 +524,9 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
               </div>
 
               <div className="space-y-1.5">
-                <Label>Coluna de Descrição *</Label>
+                <Label htmlFor="csv-description-column">Coluna de Descrição *</Label>
                 <Select value={colDesc} onValueChange={setColDesc}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectTrigger id="csv-description-column"><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
                     {parsedCSV.headers.map((h, i) => (
                       <SelectItem key={i} value={i.toString()}>{h || `Coluna ${i+1}`}</SelectItem>
@@ -535,9 +536,9 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
               </div>
 
               <div className="space-y-1.5">
-                <Label>Coluna de Valor *</Label>
+                <Label htmlFor="csv-value-column">Coluna de Valor *</Label>
                 <Select value={colValor} onValueChange={setColValor}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectTrigger id="csv-value-column"><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
                     {parsedCSV.headers.map((h, i) => (
                       <SelectItem key={i} value={i.toString()}>{h || `Coluna ${i+1}`}</SelectItem>
@@ -547,9 +548,9 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
               </div>
 
               <div className="space-y-1.5">
-                <Label>Coluna de Tipo (Opcional)</Label>
+                <Label htmlFor="csv-type-column">Coluna de Tipo (Opcional)</Label>
                 <Select value={colTipo} onValueChange={setColTipo}>
-                  <SelectTrigger><SelectValue placeholder="Auto-detectar pelo sinal (+/-)" /></SelectTrigger>
+                  <SelectTrigger id="csv-type-column"><SelectValue placeholder="Auto-detectar pelo sinal (+/-)" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="-1">Auto-detectar pelo sinal (+/-)</SelectItem>
                     {parsedCSV.headers.map((h, i) => (
@@ -560,9 +561,9 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
               </div>
 
               <div className="space-y-1.5">
-                <Label>Coluna de Status (Opcional)</Label>
+                <Label htmlFor="csv-status-column">Coluna de Status (Opcional)</Label>
                 <Select value={colStatus} onValueChange={setColStatus}>
-                  <SelectTrigger><SelectValue placeholder="Não mapeado (Padrão Pago)" /></SelectTrigger>
+                  <SelectTrigger id="csv-status-column"><SelectValue placeholder="Não mapeado (Padrão Pago)" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="-1">Não mapeado (Padrão Pago)</SelectItem>
                     {parsedCSV.headers.map((h, i) => (
@@ -573,9 +574,9 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
               </div>
 
               <div className="space-y-1.5">
-                <Label>Coluna de Conta (Opcional)</Label>
+                <Label htmlFor="csv-account-column">Coluna de Conta (Opcional)</Label>
                 <Select value={colConta} onValueChange={setColConta}>
-                  <SelectTrigger><SelectValue placeholder="Não mapeado (Padrão Fallback)" /></SelectTrigger>
+                  <SelectTrigger id="csv-account-column"><SelectValue placeholder="Não mapeado (Padrão Fallback)" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="-1">Não mapeado (Padrão Fallback)</SelectItem>
                     {parsedCSV.headers.map((h, i) => (
@@ -586,9 +587,9 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
               </div>
 
               <div className="space-y-1.5 col-span-2">
-                <Label>Coluna de Subcategoria (Opcional)</Label>
+                <Label htmlFor="csv-subcategory-column">Coluna de Subcategoria (Opcional)</Label>
                 <Select value={colSubcategoria} onValueChange={setColSubcategoria}>
-                  <SelectTrigger><SelectValue placeholder="Não mapeado (tentará ler da descrição)" /></SelectTrigger>
+                  <SelectTrigger id="csv-subcategory-column"><SelectValue placeholder="Não mapeado (tentará ler da descrição)" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="-1">Não mapeado (tentará ler da descrição)</SelectItem>
                     {parsedCSV.headers.map((h, i) => (
@@ -600,9 +601,9 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
             </div>
 
             <div className="space-y-1.5 mt-2">
-              <Label>Subcategoria Padrão (Fallback)</Label>
+              <Label htmlFor="csv-default-subcategory">Subcategoria Padrão (Fallback)</Label>
               <Select value={subcategoriaPadraoId} onValueChange={setSubcategoriaPadraoId}>
-                <SelectTrigger>
+                <SelectTrigger id="csv-default-subcategory">
                   <SelectValue placeholder="Selecione uma subcategoria padrão" />
                 </SelectTrigger>
                 <SelectContent>
@@ -622,7 +623,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
             {/* Tabela de Amostra */}
             <div className="mt-4 border rounded-lg overflow-hidden">
               <div className="bg-muted/50 p-2 text-xs font-semibold border-b">Amostra dos Dados (Primeiras 5 linhas)</div>
-              <div className="overflow-x-auto text-[11px]">
+              <div className="overflow-x-auto text-xs">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-muted/30 border-b">
@@ -680,6 +681,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                       <td className="p-3">
                         <input 
                           type="checkbox" 
+                          aria-label={`Selecionar ${row.descricao || `linha ${idx + 1}`}`}
                           checked={row.selected}
                           onChange={(e) => {
                             const updated = [...previewRows];
@@ -692,6 +694,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                       <td className="p-2">
                         <Input 
                           type="date" 
+                          aria-label={`Data da linha ${idx + 1}`}
                           value={row.data_transacao}
                           onChange={(e) => {
                             const updated = [...previewRows];
@@ -704,6 +707,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                       <td className="p-2">
                         <Input 
                           type="text" 
+                          aria-label={`Descrição da linha ${idx + 1}`}
                           value={row.descricao}
                           onChange={(e) => {
                             const updated = [...previewRows];
@@ -726,7 +730,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                             setPreviewRows(updated);
                           }}
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger aria-label={`Tipo da linha ${idx + 1}`} className="h-8 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -745,7 +749,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                             setPreviewRows(updated);
                           }}
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger aria-label={`Status da linha ${idx + 1}`} className="h-8 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -767,7 +771,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                             setPreviewRows(updated);
                           }}
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger aria-label={`Conta da linha ${idx + 1}`} className="h-8 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -780,6 +784,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                       <td className="p-2 text-right">
                         <Input 
                           type="number" 
+                          aria-label={`Valor da linha ${idx + 1}`}
                           value={row.valor}
                           onChange={(e) => {
                             const updated = [...previewRows];
@@ -799,7 +804,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                               setPreviewRows(updated);
                             }}
                           >
-                            <SelectTrigger className="h-8 text-xs border-amber-500/50 focus:border-amber-500 bg-amber-500/5">
+                            <SelectTrigger aria-label={`Conta de destino da linha ${idx + 1}`} className="h-8 text-xs border-amber-500/50 focus:border-amber-500 bg-amber-500/5">
                               <SelectValue placeholder="Conta Destino" />
                             </SelectTrigger>
                             <SelectContent>
@@ -817,13 +822,13 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
                               setPreviewRows(updated);
                             }}
                           >
-                            <SelectTrigger className="h-8 text-xs">
+                            <SelectTrigger aria-label={`Subcategoria da linha ${idx + 1}`} className="h-8 text-xs">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               {categorias.map((cat: any) => (
                                 <SelectGroup key={cat.id}>
-                                  <span className="px-2 py-1 text-[10px] font-semibold text-muted-foreground block">{cat.nome}</span>
+                                  <span className="px-2 py-1 text-xs font-semibold text-muted-foreground block">{cat.nome}</span>
                                   {cat.subcategorias?.map((sub: any) => (
                                     <SelectItem key={sub.id} value={sub.id}>{sub.nome}</SelectItem>
                                   ))}

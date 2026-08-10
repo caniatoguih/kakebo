@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout } from './components/layout/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FeedbackHost } from './components/FeedbackHost';
+import { PwaStatus } from './components/PwaStatus';
 
 // Lazy loading components
 const Dashboard = React.lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -46,6 +47,7 @@ function App() {
         <BrowserRouter>
           <AuthProvider>
             <FeedbackHost />
+            <PwaStatus />
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
                 {/* Public Routes */}

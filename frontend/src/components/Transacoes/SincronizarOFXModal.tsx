@@ -627,11 +627,11 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                   <div key={item.id} className="flex items-center gap-3 p-3 bg-muted/40 border rounded-lg hover:bg-muted/60 transition-colors">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-foreground truncate">{item.file.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{(item.file.size / 1024).toFixed(1)} KB</p>
+                      <p className="text-xs text-muted-foreground">{(item.file.size / 1024).toFixed(1)} KB</p>
                     </div>
                     <div className="w-[180px] shrink-0">
                       <Select value={item.contaId} onValueChange={(val) => handleMapAccount(item.id, val)}>
-                        <SelectTrigger className="h-8 text-xs">
+                        <SelectTrigger aria-label={`Conta para ${item.file.name}`} className="h-8 text-xs">
                           <SelectValue placeholder="Escolha a conta..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -644,8 +644,10 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label={`Remover ${item.file.name}`}
+                      title={`Remover ${item.file.name}`}
                       onClick={() => handleRemoveFile(item.id)}
-                      className="h-8 w-8 text-muted-foreground hover:text-red-500 shrink-0"
+                      className="text-muted-foreground hover:text-red-700 shrink-0"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -655,7 +657,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
             )}
 
             {/* Como funciona */}
-            <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 space-y-1.5 text-[11px] leading-relaxed shrink-0">
+            <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 space-y-1.5 text-xs leading-relaxed shrink-0">
               <h3 className="font-bold flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                 <Sparkles className="h-3.5 w-3.5" />
                 Dica de Ouro das Transferências
@@ -685,19 +687,19 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
             {/* Metas/Estatísticas */}
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-emerald-500/5 border border-emerald-500/15 rounded-lg p-3 flex flex-col justify-center gap-0.5">
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Conciliações Automáticas</span>
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Conciliações Automáticas</span>
                 <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{localConciliadas.length}</span>
-                <span className="text-[10px] text-muted-foreground">Encontradas e marcadas como "Pago"</span>
+                <span className="text-xs text-muted-foreground">Encontradas e marcadas como "Pago"</span>
               </div>
               <div className="bg-amber-500/5 border border-amber-500/15 rounded-lg p-3 flex flex-col justify-center gap-0.5">
-                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Transferências Detectadas</span>
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Transferências Detectadas</span>
                 <span className="text-2xl font-black text-amber-600 dark:text-amber-400">{localSuggestedTransfers.length}</span>
-                <span className="text-[10px] text-muted-foreground">Saídas e Entradas cruzadas</span>
+                <span className="text-xs text-muted-foreground">Saídas e Entradas cruzadas</span>
               </div>
               <div className="bg-emerald-500/5 border border-emerald-500/15 rounded-lg p-3 flex flex-col justify-center gap-0.5">
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Lançamentos Sem Match</span>
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Lançamentos Sem Match</span>
                 <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{localNaoEncontradas.length}</span>
-                <span className="text-[10px] text-muted-foreground">Lançamentos isolados nos extratos</span>
+                <span className="text-xs text-muted-foreground">Lançamentos isolados nos extratos</span>
               </div>
             </div>
 
@@ -719,7 +721,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                         size="sm"
                         onClick={handleLancarTodasTransferencias}
                         disabled={isBulkLaunching}
-                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] h-7 px-3 flex items-center gap-1.5"
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-7 px-3 flex items-center gap-1.5"
                       >
                         {isBulkLaunching ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                         Confirmar Todas
@@ -732,24 +734,24 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                           <div className="flex items-center gap-2 justify-between">
                             {/* Origem (Saída) */}
                             <div className="flex-1 min-w-0 p-2 bg-red-500/5 border border-red-500/10 rounded-md">
-                              <span className="text-[9px] font-bold text-red-500 uppercase">Saída</span>
+                              <span className="text-xs font-bold text-red-500 uppercase">Saída</span>
                               <p className="text-xs font-semibold truncate text-foreground">{item.origem.conta_nome}</p>
-                              <p className="text-[10px] text-muted-foreground truncate">{item.origem.descricao}</p>
+                              <p className="text-xs text-muted-foreground truncate">{item.origem.descricao}</p>
                             </div>
 
                             {/* Seta de Ligação */}
                             <div className="flex flex-col items-center gap-1 text-amber-500 shrink-0 px-1.5">
                               <ArrowLeftRight className="h-4 w-4 animate-pulse" />
-                              <span className="text-[10px] font-extrabold">
+                              <span className="text-xs font-extrabold">
                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor)}
                               </span>
                             </div>
 
                             {/* Destino (Entrada) */}
                             <div className="flex-1 min-w-0 p-2 bg-emerald-500/5 border border-emerald-500/10 rounded-md">
-                              <span className="text-[9px] font-bold text-emerald-500 uppercase">Entrada</span>
+                              <span className="text-xs font-bold text-emerald-500 uppercase">Entrada</span>
                               <p className="text-xs font-semibold truncate text-foreground">{item.destino.conta_nome}</p>
-                              <p className="text-[10px] text-muted-foreground truncate">{item.destino.descricao}</p>
+                              <p className="text-xs text-muted-foreground truncate">{item.destino.descricao}</p>
                             </div>
                           </div>
 
@@ -778,7 +780,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                                 size="sm"
                                 onClick={() => handleLancarTransferenciaSugerida(item)}
                                 disabled={lancarMutation.isPending}
-                                className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] h-7 px-3.5 font-bold flex items-center gap-1"
+                                className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-7 px-3.5 font-bold flex items-center gap-1"
                               >
                                 <Check className="h-3 w-3" />
                                 Lançar
@@ -813,7 +815,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.transacao.valor)}
                             </span>
                           </div>
-                          <div className="flex justify-between text-[10px] text-muted-foreground items-center">
+                          <div className="flex justify-between text-xs text-muted-foreground items-center">
                             <span>Data Kakebo: {format(new Date(item.transacao.data_transacao), 'dd/MM/yyyy')}</span>
                             <div className="flex gap-2 items-center">
                               <span className="italic text-emerald-500/80">Extrato: {item.ofx.descricao}</span>
@@ -861,7 +863,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                         <div key={itemKey} className="border border-border bg-muted/20 hover:bg-muted/40 rounded-lg p-3 text-xs space-y-2.5 transition-colors">
                           {/* Tag da Conta do OFX */}
                           <div className="flex items-center justify-between">
-                            <span className="bg-muted px-2 py-0.5 rounded text-[9px] font-semibold text-muted-foreground uppercase">
+                            <span className="bg-muted px-2 py-0.5 rounded text-xs font-semibold text-muted-foreground uppercase">
                               🏦 {item.conta_nome}
                             </span>
                             <span className={currentType === 'Despesa' ? 'text-red-500 font-bold text-xs' : currentType === 'Receita' ? 'text-green-500 font-bold text-xs' : 'text-amber-500 font-bold text-xs'}>
@@ -872,8 +874,9 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
 
                           {/* Edição de Descrição Customizável */}
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground font-semibold">Descrição do Lançamento</Label>
+                            <Label htmlFor={`ofx-description-${itemKey}`} className="text-xs text-muted-foreground font-semibold">Descrição do Lançamento</Label>
                             <input
+                              id={`ofx-description-${itemKey}`}
                               type="text"
                               value={currentDesc}
                               onChange={(e) => setCustomDescriptions(prev => ({ ...prev, [itemKey]: e.target.value }))}
@@ -882,7 +885,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                             />
                           </div>
 
-                          <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+                          <div className="flex justify-between items-center text-xs text-muted-foreground">
                             <span>Data Extrato: {format(new Date(item.data), 'dd/MM/yyyy')}</span>
                           </div>
 
@@ -890,9 +893,10 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                           <div className="flex items-center gap-2 border-t pt-2.5">
                             <div className="flex items-center gap-1 min-w-0">
                               <select
+                                aria-label={`Tipo de ${currentDesc}`}
                                 value={currentType}
                                 onChange={(e) => handleTypeChange(itemKey, e.target.value as any)}
-                                className="text-[10px] bg-background border rounded px-1.5 py-0.5 focus:outline-none font-bold"
+                                className="text-xs bg-background border rounded px-1.5 py-0.5 focus:outline-none font-bold"
                               >
                                 <option value="Despesa">Despesa</option>
                                 <option value="Receita">Receita</option>
@@ -906,7 +910,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                                 <select
                                   value={selectedDestinationAccounts[itemKey] || ''}
                                   onChange={(e) => setSelectedDestinationAccounts(prev => ({ ...prev, [itemKey]: e.target.value }))}
-                                  className="w-full text-[10px] bg-amber-500/5 border border-amber-500/30 rounded-md px-1 py-0.5 focus:outline-none text-foreground font-semibold"
+                                  className="w-full text-xs bg-amber-500/5 border border-amber-500/30 rounded-md px-1 py-0.5 focus:outline-none text-foreground font-semibold"
                                 >
                                   <option value="" disabled>
                                     {item.tipo === 'Receita' ? 'Conta Origem' : 'Conta Destino'}
@@ -923,7 +927,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                                 <select
                                   value={selectedSubcategories[itemKey] || ''}
                                   onChange={(e) => setSelectedSubcategories(prev => ({ ...prev, [itemKey]: e.target.value }))}
-                                  className="w-full text-[10px] bg-background border rounded-md px-1 py-0.5 focus:outline-none text-foreground"
+                                  className="w-full text-xs bg-background border rounded-md px-1 py-0.5 focus:outline-none text-foreground"
                                 >
                                   <option value="" disabled>Subcategoria...</option>
                                   {filteredSubcategories.map(sub => (
@@ -939,7 +943,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                               size="sm"
                               onClick={() => handleLancarAvulso(item)}
                               disabled={lancarMutation.isPending}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] h-6 px-2 font-bold flex items-center gap-1 shrink-0"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-6 px-2 font-bold flex items-center gap-1 shrink-0"
                             >
                               <Plus className="h-3 w-3" />
                               Lançar

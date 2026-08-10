@@ -108,7 +108,7 @@ export function NovaContaModal({ contaParaEditar }: NovaContaModalProps): React.
   });
 
   const trigger = isEditing ? (
-    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+    <Button aria-label={`Editar ${contaParaEditar?.nome ?? 'conta'}`} title={`Editar ${contaParaEditar?.nome ?? 'conta'}`} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
       <Pencil className="h-4 w-4" />
     </Button>
   ) : (
@@ -135,9 +135,9 @@ export function NovaContaModal({ contaParaEditar }: NovaContaModalProps): React.
           {/* Tipo só pode mudar na criação */}
           {!isEditing && (
             <div className="space-y-2">
-              <Label>Tipo</Label>
+              <Label htmlFor="account-type">Tipo</Label>
               <Select onValueChange={(v) => setValue('tipo', v as any)} defaultValue="Corrente">
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="account-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Corrente">Conta Corrente</SelectItem>
                   <SelectItem value="Poupanca">Conta Poupança</SelectItem>
@@ -150,12 +150,13 @@ export function NovaContaModal({ contaParaEditar }: NovaContaModalProps): React.
 
           {!isCartao && (
             <div className="space-y-2">
-              <Label>Saldo Inicial</Label>
+              <Label htmlFor="account-initial-balance">Saldo Inicial</Label>
               <Controller
                 control={control}
                 name="saldo_inicial"
                 render={({ field: { onChange, onBlur, value, ref } }) => (
                   <CurrencyInput
+                    id="account-initial-balance"
                     placeholder="R$ 0,00"
                     value={value as number | undefined}
                     onChange={onChange}
@@ -171,12 +172,13 @@ export function NovaContaModal({ contaParaEditar }: NovaContaModalProps): React.
             <div className="space-y-4 rounded-lg border p-4 bg-muted/40">
               <p className="text-sm font-medium text-muted-foreground">Detalhes do Cartão</p>
               <div className="space-y-2">
-                <Label>Limite Total</Label>
+                <Label htmlFor="account-credit-limit">Limite Total</Label>
                 <Controller
                   control={control}
                   name="limite_total"
                   render={({ field: { onChange, onBlur, value, ref } }) => (
                     <CurrencyInput
+                      id="account-credit-limit"
                       placeholder="R$ 5.000,00"
                       value={value as number | undefined}
                       onChange={onChange}
@@ -188,22 +190,22 @@ export function NovaContaModal({ contaParaEditar }: NovaContaModalProps): React.
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Dia de Fechamento</Label>
-                  <Input type="number" min="1" max="31" placeholder="25" {...register('dia_fechamento')} />
+                  <Label htmlFor="account-closing-day">Dia de Fechamento</Label>
+                  <Input id="account-closing-day" type="number" min="1" max="31" placeholder="25" {...register('dia_fechamento')} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Dia de Vencimento</Label>
-                  <Input type="number" min="1" max="31" placeholder="5" {...register('dia_vencimento')} />
+                  <Label htmlFor="account-due-day">Dia de Vencimento</Label>
+                  <Input id="account-due-day" type="number" min="1" max="31" placeholder="5" {...register('dia_vencimento')} />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Conta Padrão para Pagamento</Label>
+                <Label htmlFor="account-default-payment">Conta Padrão para Pagamento</Label>
                 <Select
                   onValueChange={(v) => setValue('conta_pagamento_padrao_id', v === 'none' ? null : v)}
                   value={watch('conta_pagamento_padrao_id') || 'none'}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="account-default-payment">
                     <SelectValue placeholder="Selecione uma conta..." />
                   </SelectTrigger>
                   <SelectContent>

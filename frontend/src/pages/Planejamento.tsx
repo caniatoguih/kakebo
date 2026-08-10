@@ -143,8 +143,10 @@ function PilarCard({ pilar, items, mes, ano, onDelete, isDeleting }: PilarCardPr
                   />
                   <Button
                     variant={'ghost' as any}
-                    size={'sm' as any}
-                    className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                    size="icon"
+                    aria-label={`Excluir orçamento de ${item.subcategoria_nome}`}
+                    title={`Excluir orçamento de ${item.subcategoria_nome}`}
+                    className="text-slate-600 hover:text-rose-700 dark:text-slate-300 dark:hover:text-rose-400 transition-colors"
                     onClick={() => onDelete(item.id)}
                     disabled={isDeleting}
                   >
@@ -240,11 +242,11 @@ export function Planejamento(): React.ReactElement {
         <div className="flex items-center gap-3">
           {/* Navegação de mês */}
           <div className="flex items-center gap-1 rounded-lg border border-border bg-card px-1">
-            <Button variant={'ghost' as any} size={'sm' as any} onClick={prevMonth} className="h-8 w-8 p-0">
+          <Button aria-label="Mês anterior" variant={'ghost' as any} size="icon" onClick={prevMonth}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="min-w-[130px] text-center text-sm font-semibold">{mesCapitalized}</span>
-            <Button variant={'ghost' as any} size={'sm' as any} onClick={nextMonth} className="h-8 w-8 p-0">
+          <Button aria-label="Próximo mês" variant={'ghost' as any} size="icon" onClick={nextMonth}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

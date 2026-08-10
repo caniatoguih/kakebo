@@ -119,7 +119,7 @@ export function NovoOrcamentoModal({ mes, ano, editItem, trigger }: Props): Reac
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
           {!editItem && (
             <div className="space-y-2">
-              <Label>Subcategoria</Label>
+              <Label htmlFor="subcategoria_id">Subcategoria</Label>
               <Select
                 onValueChange={(val) => setValue('subcategoria_id', val)}
                 defaultValue=""

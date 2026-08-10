@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { Suspense, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -14,17 +14,8 @@ import { orcamentosService } from '@/services/orcamentosService';
 import { transacoesService } from '@/services/transacoesService';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  Cell
-} from 'recharts';
+
+const BudgetComparisonChart = React.lazy(() => import('@/components/BudgetComparisonChart').then((module) => ({ default: module.BudgetComparisonChart })));
 
 const PILAR_CONFIG = {
   Sobrevivencia: {
@@ -70,25 +61,6 @@ const PILAR_ORDER: Pilar[] = ['Sobrevivencia', 'Lazer', 'Cultura', 'Extras'];
 
 const brl = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-
-// Custom Tooltip for Recharts
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-card border border-border p-3 rounded-lg shadow-lg">
-        <p className="font-semibold text-sm mb-2">{label}</p>
-        {payload.map((p: any, i: number) => (
-          <div key={i} className="flex items-center gap-2 text-sm">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.fill }} />
-            <span className="text-muted-foreground">{p.name}:</span>
-            <span className="font-semibold">{brl(p.value)}</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
 
 export function Dashboard(): React.ReactElement {
   const { usuario } = useAuth();
@@ -141,11 +113,11 @@ export function Dashboard(): React.ReactElement {
         </div>
         
         <div className="flex items-center gap-1 rounded-lg border border-border bg-card px-1 py-1">
-          <Button variant={'ghost' as any} size={'sm' as any} onClick={prevMonth} className="h-8 w-8 p-0">
+          <Button aria-label="Mês anterior" variant={'ghost' as any} size="icon" onClick={prevMonth}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="min-w-[140px] text-center text-sm font-semibold">{mesCapitalized}</span>
-          <Button variant={'ghost' as any} size={'sm' as any} onClick={nextMonth} className="h-8 w-8 p-0">
+          <Button aria-label="Próximo mês" variant={'ghost' as any} size="icon" onClick={nextMonth}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -200,19 +172,19 @@ export function Dashboard(): React.ReactElement {
               </CardContent>
             </Card>
 
-            <Card className={`border ${data.resumo.saldo_geral >= 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+            <Card className={`border ${data.resumo.saldo_geral >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                   Balanço (Economia)
                 </CardTitle>
                 {data.resumo.saldo_geral >= 0 ? (
-                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <TrendingUp className="h-4 w-4 text-emerald-700" />
                 ) : (
                   <TrendingDown className="h-4 w-4 text-red-500" />
                 )}
               </CardHeader>
               <CardContent>
-                <div className={`text-3xl font-bold ${data.resumo.saldo_geral >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <div className={`text-3xl font-bold ${data.resumo.saldo_geral >= 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
                   {brl(data.resumo.saldo_geral)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -229,44 +201,7 @@ export function Dashboard(): React.ReactElement {
               <CardDescription>Comparativo visual de como seu orçamento foi distribuído e consumido.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="mt-4 h-[350px] min-w-0 w-full">
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                  minWidth={0}
-                  initialDimension={{ width: 800, height: 350 }}
-                >
-                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#888888"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      stroke="#888888"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(value) => `R$${value}`}
-                    />
-                    <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(255, 255, 255, 0.05)'}} />
-                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }}/>
-                    <Bar dataKey="Orcado" name="Orçado" radius={[4, 4, 0, 0]}>
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-orc-${index}`} fill={entry.fillOrcado} />
-                      ))}
-                    </Bar>
-                    <Bar dataKey="Realizado" name="Realizado" radius={[4, 4, 0, 0]}>
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-real-${index}`} fill={entry.fillRealizado} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <Suspense fallback={<div className="mt-4 h-[350px] animate-pulse rounded-xl bg-muted" aria-label="Carregando gráfico" />}><BudgetComparisonChart data={chartData} /></Suspense>
             </CardContent>
           </Card> : <EmptyState icon={Target} title="Ainda não há dados para comparar neste mês" description="Crie um orçamento e registre movimentações para visualizar o comparativo entre o planejado e o realizado." action={<><Button asChild variant="outline"><Link to="/planejamento">Planejar o mês</Link></Button><Button asChild><Link to="/transacoes">Registrar movimentação</Link></Button></>} />}
 

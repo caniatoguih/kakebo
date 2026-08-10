@@ -343,25 +343,25 @@ export function FluxoContabil() {
           
           {/* Seletor Realizado vs Previsto */}
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-semibold text-slate-400">Tipo de Fluxo</Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tipo de Fluxo</Label>
             <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-950 border border-slate-200/55 dark:border-slate-800/60">
               <button
                 onClick={() => setStatusFilter('Pago')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${statusFilter === 'Pago' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === 'Pago' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-300' : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'}`}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Realizado
               </button>
               <button
                 onClick={() => setStatusFilter('Pendente')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${statusFilter === 'Pendente' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === 'Pendente' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-300' : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'}`}
               >
                 <AlertCircle className="h-3.5 w-3.5" />
                 Previsto
               </button>
               <button
                 onClick={() => setStatusFilter('Ambos')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${statusFilter === 'Ambos' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === 'Ambos' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-300' : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'}`}
               >
                 <Eye className="h-3.5 w-3.5" />
                 Ambos
@@ -374,7 +374,7 @@ export function FluxoContabil() {
 
           {/* Filtro de Conta Bancária */}
           <div className="flex flex-col gap-1.5 min-w-[140px]">
-            <Label htmlFor="conta-filtro" className="text-xs font-semibold text-slate-400">Conta</Label>
+            <Label htmlFor="conta-filtro" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Conta</Label>
             <Select value={contaSelecionada} onValueChange={setContaSelecionada}>
               <SelectTrigger id="conta-filtro" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
                 <SelectValue placeholder="Todas as Contas" />
@@ -393,7 +393,7 @@ export function FluxoContabil() {
 
           {/* Seletor de Modo de Filtro (Anual vs Custom) */}
           <div className="flex flex-col gap-1.5 min-w-[120px]">
-            <Label htmlFor="filtro-modo" className="text-xs font-semibold text-slate-400">Modo Período</Label>
+            <Label htmlFor="filtro-modo" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Modo Período</Label>
             <Select value={filtroModo} onValueChange={(val: any) => setFiltroModo(val)}>
               <SelectTrigger id="filtro-modo" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
                 <SelectValue placeholder="Selecione" />
@@ -408,7 +408,7 @@ export function FluxoContabil() {
           {/* Seletores específicos com base no modo */}
           {filtroModo === 'Anual' ? (
             <div className="flex flex-col gap-1.5 min-w-[100px]">
-              <Label htmlFor="ano-selecionado" className="text-xs font-semibold text-slate-400">Ano</Label>
+              <Label htmlFor="ano-selecionado" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Ano</Label>
               <Select value={anoSelecionado} onValueChange={setAnoSelecionado}>
                 <SelectTrigger id="ano-selecionado" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
                   <SelectValue placeholder="Ano" />
@@ -423,7 +423,7 @@ export function FluxoContabil() {
           ) : (
             <>
               <div className="flex flex-col gap-1.5 min-w-[110px]">
-                <Label htmlFor="start-month" className="text-xs font-semibold text-slate-400">Início</Label>
+                <Label htmlFor="start-month" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Início</Label>
                 <Select value={startMonthCustom} onValueChange={setStartMonthCustom}>
                   <SelectTrigger id="start-month" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
                     <SelectValue placeholder="Início" />
@@ -437,7 +437,7 @@ export function FluxoContabil() {
               </div>
 
               <div className="flex flex-col gap-1.5 min-w-[110px]">
-                <Label htmlFor="end-month" className="text-xs font-semibold text-slate-400">Fim</Label>
+                <Label htmlFor="end-month" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Fim</Label>
                 <Select value={endMonthCustom} onValueChange={(val) => setEndMonthCustom(val)}>
                   <SelectTrigger id="end-month" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
                     <SelectValue placeholder="Fim" />
@@ -475,7 +475,7 @@ export function FluxoContabil() {
                   <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                     {formatCurrency(kpis.patrimonio)}
                   </h3>
-                  <p className="text-[10px] text-muted-foreground">Saldo final acumulado em {formatMonthLabel(dfc.meses[dfc.meses.length - 1])}</p>
+                  <p className="text-xs text-muted-foreground">Saldo final acumulado em {formatMonthLabel(dfc.meses[dfc.meses.length - 1])}</p>
                 </div>
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-xl">
                   <Wallet className="h-6 w-6" />
@@ -490,7 +490,7 @@ export function FluxoContabil() {
                   <h3 className={`text-2xl font-bold ${kpis.resultadoPeriodo >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                     {formatCurrency(kpis.resultadoPeriodo)}
                   </h3>
-                  <p className="text-[10px] text-muted-foreground">Entradas menos saídas no intervalo selecionado</p>
+                  <p className="text-xs text-muted-foreground">Entradas menos saídas no intervalo selecionado</p>
                 </div>
                 <div className={`p-3 rounded-xl ${kpis.resultadoPeriodo >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400'}`}>
                   {kpis.resultadoPeriodo >= 0 ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
@@ -505,7 +505,7 @@ export function FluxoContabil() {
                   <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                     {formatCurrency(kpis.melhorMesValor)}
                   </h3>
-                  <p className="text-[10px] text-muted-foreground">Superávit recorde em {formatMonthLabel(kpis.melhorMes)}</p>
+                  <p className="text-xs text-muted-foreground">Superávit recorde em {formatMonthLabel(kpis.melhorMes)}</p>
                 </div>
                 <div className="p-3 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-xl">
                   <DollarSign className="h-6 w-6" />
@@ -561,7 +561,7 @@ export function FluxoContabil() {
                       Descrição Contábil
                     </th>
                     {dfc.meses.map((m: string) => (
-                      <th key={m} className="py-4 px-4 text-right text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider min-w-[110px]">
+                      <th key={m} className="py-4 px-4 text-right text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wider min-w-[110px]">
                         {formatMonthLabel(m)}
                       </th>
                     ))}
@@ -609,7 +609,7 @@ export function FluxoContabil() {
                               {sub.subcategoria_nome}
                             </td>
                             {dfc.meses.map((m: string) => (
-                              <td key={`${cat.categoria_nome}-${sub.subcategoria_nome}-${m}`} className="py-2.5 px-4 text-right text-[11px] text-slate-400 dark:text-slate-500">
+                              <td key={`${cat.categoria_nome}-${sub.subcategoria_nome}-${m}`} className="py-2.5 px-4 text-right text-xs text-slate-400 dark:text-slate-500">
                                 {formatCurrency(sub.valores[m] ?? 0)}
                               </td>
                             ))}
@@ -671,7 +671,7 @@ export function FluxoContabil() {
                               {sub.subcategoria_nome}
                             </td>
                             {dfc.meses.map((m: string) => (
-                              <td key={`${cat.categoria_nome}-${sub.subcategoria_nome}-${m}`} className="py-2.5 px-4 text-right text-[11px] text-slate-400 dark:text-slate-500">
+                              <td key={`${cat.categoria_nome}-${sub.subcategoria_nome}-${m}`} className="py-2.5 px-4 text-right text-xs text-slate-400 dark:text-slate-500">
                                 {formatCurrency(sub.valores[m] ?? 0)}
                               </td>
                             ))}

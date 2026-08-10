@@ -70,7 +70,9 @@ export function Categorias(): React.ReactElement {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-4 w-4 ml-1 hover:bg-transparent hover:text-destructive"
+                aria-label={`Excluir ${sub.nome}`}
+                title={`Excluir ${sub.nome}`}
+                className="ml-1 -my-2 -mr-2 hover:bg-transparent hover:text-destructive"
                 onClick={() => handleDelete(sub.id, sub.nome)}
                 disabled={deleteMutation.isPending}
               >

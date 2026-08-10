@@ -6,7 +6,12 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  if (!['get', 'head', 'options'].includes(config.method?.toLowerCase() ?? 'get')) {
+  const mutation = !['get', 'head', 'options'].includes(config.method?.toLowerCase() ?? 'get');
+  if (mutation && !navigator.onLine) {
+    window.dispatchEvent(new CustomEvent('kakebo:feedback', { detail: { message: 'Conecte-se à internet para concluir esta alteração.', type: 'warning' } }));
+    return Promise.reject(new axios.CanceledError('Operação indisponível offline.'));
+  }
+  if (mutation) {
     const csrf = document.cookie.split('; ').find((cookie) => cookie.startsWith('kakebo_csrf='))?.split('=')[1];
     if (csrf) config.headers['X-CSRF-Token'] = decodeURIComponent(csrf);
   }

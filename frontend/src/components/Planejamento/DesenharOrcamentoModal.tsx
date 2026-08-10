@@ -225,23 +225,23 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
               {/* Dashboard de Previsão do Mês */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
                 <div className="bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 rounded-xl p-3.5 flex flex-col justify-center gap-0.5">
-                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
                     <TrendingUp className="h-3.5 w-3.5" /> Previsão de Receita
                   </span>
                   <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
                     {brl(previsaoReceita)}
                   </span>
-                  <span className="text-[9px] text-muted-foreground truncate">Esperado de entradas</span>
+                  <span className="text-xs text-muted-foreground truncate">Esperado de entradas</span>
                 </div>
 
                 <div className="bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/15 rounded-xl p-3.5 flex flex-col justify-center gap-0.5">
-                  <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                  <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
                     <TrendingDown className="h-3.5 w-3.5" /> Previsão de Gasto
                   </span>
                   <span className="text-xl font-black text-rose-600 dark:text-rose-400">
                     {brl(previsaoDespesa)}
                   </span>
-                  <span className="text-[9px] text-muted-foreground truncate">Esperado de saídas</span>
+                  <span className="text-xs text-muted-foreground truncate">Esperado de saídas</span>
                 </div>
 
                 <div className={`border rounded-xl p-3.5 flex flex-col justify-center gap-0.5 ${
@@ -249,13 +249,13 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
                     ? 'bg-emerald-500/5 dark:bg-emerald-500/10 border-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                     : 'bg-amber-500/5 dark:bg-amber-500/10 border-amber-500/15 text-amber-600 dark:text-amber-400'
                 }`}>
-                  <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
                     <Wallet className="h-3.5 w-3.5" /> Saldo Previsto
                   </span>
                   <span className="text-xl font-black">
                     {brl(previsaoReceita - previsaoDespesa)}
                   </span>
-                  <span className="text-[9px] text-muted-foreground truncate">
+                  <span className="text-xs text-muted-foreground truncate">
                     {previsaoReceita >= previsaoDespesa ? 'Superávit estimado' : 'Déficit estimado'}
                   </span>
                 </div>
@@ -264,10 +264,10 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
               {/* Lista de Gastos Sugeridos por Subcategoria */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center px-1">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Sugestões de Orçamento de Despesas ({sugestoes.length})
-                  </Label>
-                  <span className="text-[11px] font-medium text-slate-400">
+                  </p>
+                  <span className="text-xs font-medium text-slate-400">
                     {sugestoes.filter(s => s.selecionado).length} selecionadas
                   </span>
                 </div>
@@ -285,6 +285,7 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
                         <input
                           type="checkbox"
                           id={`chk-${item.subcategoria_id}`}
+                          aria-label={`Incluir ${item.subcategoria_nome} no orçamento`}
                           checked={item.selecionado}
                           onChange={() => handleToggleSelect(idx)}
                           className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
@@ -293,7 +294,7 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
                           <p className="text-xs font-bold text-foreground truncate">
                             {item.subcategoria_nome}
                           </p>
-                          <p className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1.5 truncate">
+                          <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5 truncate">
                             {item.categoria_nome} • <span className="italic">{item.pilar}</span>
                           </p>
                         </div>
@@ -302,12 +303,12 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
                       {/* Valores e Input */}
                       <div className="flex items-center gap-4 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
                         <div className="text-right">
-                          <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Previsto no Fluxo</p>
+                          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Previsto no Fluxo</p>
                           <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{brl(item.valor_previsto)}</p>
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <Label htmlFor={`val-${item.subcategoria_id}`} className="text-[10px] font-bold text-muted-foreground sm:hidden">Orçar:</Label>
+                          <Label htmlFor={`val-${item.subcategoria_id}`} className="text-xs font-bold text-muted-foreground sm:hidden">Orçar:</Label>
                           <Input
                             id={`val-${item.subcategoria_id}`}
                             type="number"
@@ -327,12 +328,12 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
               {/* Informações Auxiliares de Receitas */}
               {receitaItens.length > 0 && (
                 <div className="p-3 bg-muted/40 border border-slate-200/30 dark:border-slate-800/40 rounded-xl space-y-2">
-                  <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                     🔍 Detalhamento das Receitas Previstas ({receitaItens.length})
                   </h4>
                   <div className="max-h-[100px] overflow-y-auto space-y-1.5 pr-1">
                     {receitaItens.map((item, idx) => (
-                      <div key={idx} className="flex justify-between text-[11px] font-medium">
+                      <div key={idx} className="flex justify-between text-xs font-medium">
                         <span className="text-slate-500 truncate">{item.descricao}</span>
                         <span className="text-emerald-500 font-bold">{brl(item.valor)}</span>
                       </div>

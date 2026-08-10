@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { lazy, Suspense, useDeferredValue, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -13,8 +13,6 @@ import { transacoesService, type TransacaoData, type TransactionFilters, type Tr
 import { contasService } from '@/services/contasService';
 import { categoriasService } from '@/services/categoriasService';
 import { NovaTransacaoModal } from '@/components/Transacoes/NovaTransacaoModal';
-import { ImportarCSVModal } from '@/components/Transacoes/ImportarCSVModal';
-import { SincronizarOFXModal } from '@/components/Transacoes/SincronizarOFXModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,6 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const PAGE_SIZE = 25;
+const ImportarCSVModal = lazy(() => import('@/components/Transacoes/ImportarCSVModal').then((module) => ({ default: module.ImportarCSVModal })));
+const SincronizarOFXModal = lazy(() => import('@/components/Transacoes/SincronizarOFXModal').then((module) => ({ default: module.SincronizarOFXModal })));
 const brl = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 function transferDestination(item: TransacaoData) {
@@ -150,7 +150,7 @@ export function Transacoes() {
 
   const transactionActions = (item: TransacaoData) => <div className="flex items-center gap-1">
     <NovaTransacaoModal editItem={item} />
-    <Button aria-label={`Excluir ${cleanDescription(item)}`} variant="ghost" size="icon" onClick={() => remove(item)} className="h-9 w-9 text-rose-600"><Trash2 /></Button>
+    <Button aria-label={`Excluir ${cleanDescription(item)}`} title={`Excluir ${cleanDescription(item)}`} variant="ghost" size="icon" onClick={() => remove(item)} className="text-rose-700 dark:text-rose-400"><Trash2 /></Button>
   </div>;
 
   return <div className="space-y-5">
@@ -161,25 +161,24 @@ export function Transacoes() {
         <div className="relative">
           <Button variant="outline" onClick={() => setShowImport((value) => !value)} className="gap-2"><FileDown /> Importar</Button>
           {showImport && <div className="absolute right-0 top-11 z-30 w-52 space-y-1 rounded-xl border bg-background p-2 shadow-xl">
-            <SincronizarOFXModal trigger={<Button variant="ghost" className="w-full justify-start">Sincronizar OFX</Button>} />
-            <ImportarCSVModal trigger={<Button variant="ghost" className="w-full justify-start">Importar CSV</Button>} />
+            <Suspense fallback={<p className="px-3 py-2 text-sm text-muted-foreground">Carregando importadores...</p>}><SincronizarOFXModal trigger={<Button variant="ghost" className="w-full justify-start">Sincronizar OFX</Button>} /><ImportarCSVModal trigger={<Button variant="ghost" className="w-full justify-start">Importar CSV</Button>} /></Suspense>
           </div>}
         </div>
       </div>
     </header>
 
     <Card><CardContent className="p-4">
-      <button className="flex w-full items-center justify-between text-sm font-semibold" onClick={() => setShowFilters((value) => !value)}><span className="flex items-center gap-2"><Filter /> Filtros</span><span>{showFilters ? 'Ocultar' : 'Mostrar'}</span></button>
+      <button aria-expanded={showFilters} className="flex min-h-11 w-full items-center justify-between rounded-md text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setShowFilters((value) => !value)}><span className="flex items-center gap-2"><Filter /> Filtros</span><span>{showFilters ? 'Ocultar' : 'Mostrar'}</span></button>
       {showFilters && <div className="mt-4 grid gap-3 md:grid-cols-4">
         <div><Label htmlFor="transaction-search">Descrição</Label><div className="relative mt-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input id="transaction-search" className="pl-9" value={search} onChange={(event) => setFilter('busca', event.target.value)} placeholder="Buscar..." /></div></div>
-        <div><Label>Status</Label><Select value={status} onValueChange={(value) => setFilter('status', value)}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem><SelectItem value="Pago">Pago</SelectItem><SelectItem value="Pendente">Pendente</SelectItem></SelectContent></Select></div>
-        <div><Label>Conta</Label><Select value={account} onValueChange={(value) => setFilter('conta', value)}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas</SelectItem>{contas.map((item) => <SelectItem key={item.id} value={item.id!}>{item.nome}</SelectItem>)}</SelectContent></Select></div>
-        <div><Label>Subcategoria</Label><Select value={subcategory} onValueChange={(value) => setFilter('subcategoria', value)}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas</SelectItem>{categorias.flatMap((category) => category.subcategorias.map((item) => <SelectItem key={item.id} value={item.id}>{category.nome} · {item.nome}</SelectItem>))}</SelectContent></Select></div>
-        <div><Label>Período</Label><Select value={period} onValueChange={(value) => setFilter('periodo', value)}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Mes">Mês específico</SelectItem><SelectItem value="Personalizado">Período personalizado</SelectItem><SelectItem value="Todos">Todo o histórico</SelectItem></SelectContent></Select></div>
+        <div><Label htmlFor="transaction-status-filter">Status</Label><Select value={status} onValueChange={(value) => setFilter('status', value)}><SelectTrigger id="transaction-status-filter" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem><SelectItem value="Pago">Pago</SelectItem><SelectItem value="Pendente">Pendente</SelectItem></SelectContent></Select></div>
+        <div><Label htmlFor="transaction-account-filter">Conta</Label><Select value={account} onValueChange={(value) => setFilter('conta', value)}><SelectTrigger id="transaction-account-filter" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas</SelectItem>{contas.map((item) => <SelectItem key={item.id} value={item.id!}>{item.nome}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label htmlFor="transaction-subcategory-filter">Subcategoria</Label><Select value={subcategory} onValueChange={(value) => setFilter('subcategoria', value)}><SelectTrigger id="transaction-subcategory-filter" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas</SelectItem>{categorias.flatMap((category) => category.subcategorias.map((item) => <SelectItem key={item.id} value={item.id}>{category.nome} · {item.nome}</SelectItem>))}</SelectContent></Select></div>
+        <div><Label htmlFor="transaction-period-filter">Período</Label><Select value={period} onValueChange={(value) => setFilter('periodo', value)}><SelectTrigger id="transaction-period-filter" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Mes">Mês específico</SelectItem><SelectItem value="Personalizado">Período personalizado</SelectItem><SelectItem value="Todos">Todo o histórico</SelectItem></SelectContent></Select></div>
         {period === 'Mes' && <div><Label htmlFor="transaction-month">Mês</Label><Input id="transaction-month" type="month" className="mt-1" value={month} onChange={(event) => setFilter('mes', event.target.value)} /></div>}
         {period === 'Personalizado' && <><div><Label htmlFor="transaction-start">Data inicial</Label><Input id="transaction-start" type="date" className="mt-1" value={startDate} max={endDate || undefined} onChange={(event) => setFilter('inicio', event.target.value)} /></div><div><Label htmlFor="transaction-end">Data final</Label><Input id="transaction-end" type="date" className="mt-1" value={endDate} min={startDate || undefined} onChange={(event) => setFilter('fim', event.target.value)} /></div></>}
       </div>}
-      <div className="mt-3 flex flex-wrap items-center gap-2">{activeFilters.map((filter) => <button key={filter.key} onClick={() => filter.key === 'periodo' ? setFilter('periodo', 'Todos') : setFilter(filter.key)} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs font-medium">{filter.label}<X className="h-3 w-3" /></button>)}<Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button></div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">{activeFilters.map((filter) => <button key={filter.key} aria-label={`Remover filtro ${filter.label}`} onClick={() => filter.key === 'periodo' ? setFilter('periodo', 'Todos') : setFilter(filter.key)} className="inline-flex min-h-11 items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{filter.label}<X className="h-3 w-3" /></button>)}<Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button></div>
     </CardContent></Card>
 
     <div className="flex items-center justify-between text-sm text-muted-foreground"><span>{total} {total === 1 ? 'lançamento encontrado' : 'lançamentos encontrados'}</span><span>Página {page} de {totalPages}</span></div>

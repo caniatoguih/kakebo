@@ -151,9 +151,9 @@ export function PagarFaturaModal({ cartao }: PagarFaturaModalProps): React.React
 
           {/* Conta de Origem */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-slate-500">Debitar da Conta</Label>
+            <Label htmlFor="invoice-payment-account" className="text-xs font-bold text-slate-600 dark:text-slate-300">Debitar da Conta</Label>
             <Select value={contaOrigemId} onValueChange={setContaOrigemId}>
-              <SelectTrigger className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200 focus:ring-blue-600">
+              <SelectTrigger id="invoice-payment-account" className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-slate-200 focus:ring-blue-600">
                 <SelectValue placeholder="Selecione a conta de origem" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">

@@ -39,8 +39,10 @@ function ContaCard({ conta, onDelete }: { conta: ContaData; onDelete: (id: strin
             <Button
               variant="ghost"
               size="icon"
+              aria-label={`Excluir ${conta.nome}`}
+              title={`Excluir ${conta.nome}`}
               onClick={() => onDelete(conta.id!, conta.nome)}
-              className="h-8 w-8 text-rose-600 hover:text-rose-800 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/30 rounded-lg"
+              className="text-rose-600 hover:text-rose-800 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/30 rounded-lg"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -74,14 +76,14 @@ function ContaCard({ conta, onDelete }: { conta: ContaData; onDelete: (id: strin
             
             <div className="pt-3 flex justify-between items-center border-t border-slate-100 dark:border-slate-800/40 mt-2">
               <div className="flex flex-col">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Fatura do Mês</span>
+                <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">Fatura do Mês</span>
                 <span className="text-base font-extrabold text-purple-600 dark:text-purple-400">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(conta.fatura_atual ?? 0))}
                 </span>
               </div>
               
               <div className="flex flex-col items-end">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Comprometido</span>
+                <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">Total Comprometido</span>
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(saldo))}
                 </span>
@@ -150,7 +152,7 @@ export function Contas(): React.ReactElement {
       {!isLoading && !isError && <Card className="bg-primary text-primary-foreground">
         <CardContent className="flex items-center justify-between p-6">
           <div>
-            <p className="text-sm font-medium opacity-80">Saldo Total em Contas</p>
+            <p className="text-sm font-medium">Saldo Total em Contas</p>
             <p className="text-4xl font-bold mt-1">
               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(saldoTotal)}
             </p>

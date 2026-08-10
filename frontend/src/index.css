@@ -11,19 +11,19 @@
     --card-foreground: 20 10% 15%;
     --popover: 0 0% 100%;
     --popover-foreground: 20 10% 15%;
-    --primary: 142 76% 36%;        /* Financial Green accent */
+    --primary: 160 94% 24%;        /* Accessible emerald accent */
     --primary-foreground: 0 0% 100%;
     --secondary: 40 15% 90%;       /* Sand/Wood */
     --secondary-foreground: 20 10% 15%;
     --muted: 40 10% 90%;
-    --muted-foreground: 20 5% 45%;
+    --muted-foreground: 20 6% 38%;
     --accent: 40 15% 90%;
     --accent-foreground: 20 10% 15%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 40 15% 85%;
     --input: 40 15% 85%;
-    --ring: 142 76% 36%;
+    --ring: 160 94% 24%;
     --radius: 1rem;
   }
 
@@ -58,5 +58,16 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

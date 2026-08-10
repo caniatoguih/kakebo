@@ -146,6 +146,10 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
         return;
       }
     }
+    if (!editItem && data.tipo !== 'Transferencia' && tipoRepeticao !== 'Unica' && Number(data.total_parcelas) < 2) {
+      setError('total_parcelas', { message: 'Informe pelo menos 2 meses.' });
+      return;
+    }
     // A API backend espera um ISO 8601 com timezone (z.string().datetime())
     const isoDate = new Date(data.data_transacao + "T00:00:00").toISOString();
     
@@ -175,7 +179,7 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
   };
 
   const defaultTrigger = editItem ? (
-    <Button aria-label={`Editar ${editItem.descricao}`} variant="ghost" size="icon" className="h-9 w-9 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30 rounded-lg">
+    <Button aria-label={`Editar ${editItem.descricao}`} title={`Editar ${editItem.descricao}`} variant="ghost" size="icon" className="text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30 rounded-lg">
       <Pencil className="h-4 w-4" />
     </Button>
   ) : (
@@ -225,7 +229,12 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
                       onClick={() => {
                         setValue('tipo', option.value, { shouldValidate: true });
                         setValue('subcategoria_id', '');
-                        if (option.value !== 'Transferencia') setValue('conta_destino_id', '');
+                        if (option.value !== 'Transferencia') {
+                          setValue('conta_destino_id', '');
+                        } else {
+                          setTipoRepeticao('Unica');
+                          setValue('total_parcelas', 1);
+                        }
                       }}
                       className={cn(
                         'relative flex min-h-20 items-center gap-3 rounded-xl border p-3 text-left transition-colors sm:flex-col sm:items-start',
@@ -286,9 +295,9 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Status do lançamento</Label>
+              <Label htmlFor="transaction-status">Status do lançamento</Label>
               <Select onValueChange={(val) => setValue('status', val as any)} value={status}>
-                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectTrigger id="transaction-status"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Pago">Pago / Recebido</SelectItem>
                   <SelectItem value="Pendente">Pendente</SelectItem>
@@ -298,12 +307,12 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
           </div>
 
           <div className="space-y-2">
-            <Label>{tipo === 'Transferencia' ? 'Conta de Origem' : 'Conta Origem/Destino'}</Label>
+            <Label htmlFor="transaction-account">{tipo === 'Transferencia' ? 'Conta de Origem' : 'Conta Origem/Destino'}</Label>
             <Select onValueChange={(val) => {
               setValue('conta_id', val);
               if (val === conta_destino_id) setValue('conta_destino_id', '');
             }} value={conta_id || undefined}>
-              <SelectTrigger aria-invalid={!!errors.conta_id} aria-describedby={errors.conta_id ? 'transaction-account-error' : undefined}>
+              <SelectTrigger id="transaction-account" aria-invalid={!!errors.conta_id} aria-describedby={errors.conta_id ? 'transaction-account-error' : undefined}>
                 <SelectValue placeholder={contas.length === 0 ? 'Nenhuma conta cadastrada' : 'Selecione a conta'} />
               </SelectTrigger>
               <SelectContent>
@@ -319,9 +328,9 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
 
           {tipo === 'Transferencia' && (
             <div className="space-y-2">
-              <Label>Conta de Destino</Label>
+              <Label htmlFor="transaction-destination">Conta de Destino</Label>
               <Select onValueChange={(val) => setValue('conta_destino_id', val)} value={conta_destino_id || undefined}>
-                <SelectTrigger aria-invalid={!!errors.conta_destino_id} aria-describedby={errors.conta_destino_id ? 'transaction-destination-error' : undefined}>
+                <SelectTrigger id="transaction-destination" aria-invalid={!!errors.conta_destino_id} aria-describedby={errors.conta_destino_id ? 'transaction-destination-error' : undefined}>
                   <SelectValue placeholder="Selecione a conta que receberá o valor" />
                 </SelectTrigger>
                 <SelectContent>
@@ -395,9 +404,9 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
           )}
 
           {tipo !== 'Transferencia' && <div className="space-y-2">
-            <Label>Subcategoria (Opcional)</Label>
+            <Label htmlFor="transaction-subcategory">Subcategoria (Opcional)</Label>
             <Select onValueChange={(val) => setValue('subcategoria_id', val)} value={subcategoria_id || undefined}>
-              <SelectTrigger>
+              <SelectTrigger id="transaction-subcategory">
                 <SelectValue placeholder={categoriasFiltradas.length === 0 ? 'Nenhuma categoria' : 'Selecione a categoria'} />
               </SelectTrigger>
               <SelectContent>
@@ -413,21 +422,21 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
             </Select>
           </div>}
 
-          {tipo === 'Despesa' && !editItem && (
+          {tipo !== 'Transferencia' && !editItem && (
             <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800/80">
               <div className="space-y-1.5">
-                <Label>Repetição do Lançamento</Label>
+                <Label htmlFor="transaction-repetition">Frequência do lançamento</Label>
                 <Select
                   onValueChange={(val) => setTipoRepeticao(val as any)}
                   value={tipoRepeticao}
                 >
-                  <SelectTrigger className="bg-white dark:bg-slate-950">
+                  <SelectTrigger id="transaction-repetition" className="bg-white dark:bg-slate-950">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Unica">Lançamento Único</SelectItem>
-                    <SelectItem value="Parcelada">Compra Parcelada (Dividir valor)</SelectItem>
-                    <SelectItem value="Recorrente">Assinatura / Recorrência (Valor cheio mensal)</SelectItem>
+                    <SelectItem value="Unica">Lançamento único</SelectItem>
+                    <SelectItem value="Parcelada">Parcelado (dividir o valor entre os meses)</SelectItem>
+                    <SelectItem value="Recorrente">Recorrente (repetir o valor integral por mês)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -441,8 +450,11 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
                     min="2"
                     placeholder="Ex: 12"
                     className="bg-white dark:bg-slate-950"
+                    aria-invalid={!!errors.total_parcelas}
+                    aria-describedby={errors.total_parcelas ? 'transaction-installments-error' : undefined}
                     {...register('total_parcelas')}
                   />
+                  <FormFieldError id="transaction-installments-error" message={errors.total_parcelas?.message} />
                   <p className="text-xs text-muted-foreground italic">
                     O valor total inserido será dividido igualmente entre os meses.
                   </p>
@@ -458,8 +470,11 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
                     min="2"
                     placeholder="Ex: 12"
                     className="bg-white dark:bg-slate-950"
+                    aria-invalid={!!errors.total_parcelas}
+                    aria-describedby={errors.total_parcelas ? 'transaction-recurrence-error' : undefined}
                     {...register('total_parcelas')}
                   />
+                  <FormFieldError id="transaction-recurrence-error" message={errors.total_parcelas?.message} />
                   <p className="text-xs text-muted-foreground italic">
                     O valor cheio inserido será lançado mensalmente para cada mês.
                   </p>

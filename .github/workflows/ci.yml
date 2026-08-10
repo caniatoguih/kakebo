@@ -69,6 +69,8 @@ jobs:
         run: npm run lint
       - name: Build frontend
         run: npm run build
+      - name: Enforce frontend bundle budgets
+        run: npm run check:bundle
       - name: Run tests
         run: npm run test
 
@@ -123,6 +125,19 @@ jobs:
       - name: Run desktop and mobile journeys
         working-directory: ./frontend
         run: npm run test:e2e
+      - name: Build production PWA
+        working-directory: ./frontend
+        run: npm run build
+      - name: Start production preview
+        working-directory: ./frontend
+        run: |
+          npm run preview -- --host 0.0.0.0 --port 4173 &
+          until curl --fail --silent http://localhost:4173; do sleep 2; done
+      - name: Run production PWA journeys
+        working-directory: ./frontend
+        env:
+          E2E_BASE_URL: http://localhost:4173
+        run: npm run test:e2e:pwa
       - name: Upload E2E evidence
         if: always()
         uses: actions/upload-artifact@v4

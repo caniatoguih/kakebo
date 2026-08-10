@@ -137,26 +137,26 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                 if (fatura.status) {
                   const label = fatura.status === 'ParcialmentePaga' ? 'Parcial' : fatura.status;
                   badge = (
-                    <span className="bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/50 font-bold px-2 py-0.5 rounded-full text-[9px]">
+                    <span className="bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/50 font-bold px-2 py-0.5 rounded-full text-xs">
                       {label}
                     </span>
                   );
                 } else if (totalInvoice > 0) {
                   if (totalPago >= totalInvoice - 0.05) {
                     badge = (
-                      <span className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 font-bold px-2 py-0.5 rounded-full text-[9px]">
+                      <span className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 font-bold px-2 py-0.5 rounded-full text-xs">
                         Paga
                       </span>
                     );
                   } else if (totalPago > 0) {
                     badge = (
-                      <span className="bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50 font-bold px-2 py-0.5 rounded-full text-[9px]">
+                      <span className="bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50 font-bold px-2 py-0.5 rounded-full text-xs">
                         Parcial
                       </span>
                     );
                   } else {
                     badge = (
-                      <span className="bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/50 font-bold px-2 py-0.5 rounded-full text-[9px]">
+                      <span className="bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/50 font-bold px-2 py-0.5 rounded-full text-xs">
                         Aberta
                       </span>
                     );
@@ -180,11 +180,11 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                           </span>
                           {badge}
                         </div>
-                        <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">
+                        <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-0.5">
                           {fatura.transacoes.length} {fatura.transacoes.length === 1 ? 'lançamento' : 'lançamentos'}
                         </span>
                         {fatura.data_vencimento && (
-                          <span className="text-[10px] text-slate-400 mt-1">
+                          <span className="text-xs text-slate-400 mt-1">
                             Vence em {new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(fatura.data_vencimento))}
                             {' · '}Restante {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(saldoRestante)}
                           </span>
@@ -233,7 +233,7 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                                         <span>·</span>
                                         {t.recorrente ? (
                                           <div className="flex items-center gap-1.5">
-                                            <span className="bg-emerald-100/60 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold px-1.5 py-0.5 rounded text-[9px]">
+                                            <span className="bg-emerald-100/60 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold px-1.5 py-0.5 rounded text-xs">
                                               Recorrência {t.parcela_atual}/{t.total_parcelas}
                                             </span>
                                             {t.transacao_pai_id && (
@@ -244,7 +244,7 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                                                     handleProrrogar(t.transacao_pai_id!);
                                                   }}
                                                   title="Prorrogar esta recorrência"
-                                                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors duration-150 flex items-center gap-0.5 text-[9px] font-semibold border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 px-1 py-0.5 rounded-sm active:scale-95 cursor-pointer"
+                                                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors duration-150 flex items-center gap-0.5 text-xs font-semibold border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 px-1 py-0.5 rounded-sm active:scale-95 cursor-pointer"
                                                 >
                                                   <CalendarPlus className="h-2.5 w-2.5" />
                                                   <span>Prorrogar</span>
@@ -256,7 +256,7 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                                                     handleCancelarRecorrencia(t.transacao_pai_id!, t.parcela_atual);
                                                   }}
                                                   title="Encerrar recorrência antecipadamente"
-                                                  className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors duration-150 flex items-center gap-0.5 text-[9px] font-semibold border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 px-1 py-0.5 rounded-sm active:scale-95 cursor-pointer"
+                                                  className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors duration-150 flex items-center gap-0.5 text-xs font-semibold border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 px-1 py-0.5 rounded-sm active:scale-95 cursor-pointer"
                                                 >
                                                   <Ban className="h-2.5 w-2.5" />
                                                   <span>Encerrar</span>
@@ -265,7 +265,7 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
                                             )}
                                           </div>
                                         ) : (
-                                          <span className="bg-purple-100/60 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold px-1 rounded-sm text-[9px]">
+                                          <span className="bg-purple-100/60 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold px-1 rounded-sm text-xs">
                                             Parcela {t.parcela_atual}/{t.total_parcelas}
                                           </span>
                                         )}

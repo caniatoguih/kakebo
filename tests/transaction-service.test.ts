@@ -64,6 +64,31 @@ describe('criação financeira atômica', () => {
     });
   });
 
+  it('cria receitas recorrentes mensais e credita somente a primeira recebida', async () => {
+    mocks.accountOwnership.mockResolvedValue({ id: 'conta-1', tipo: 'Corrente' });
+    const service = new TransacaoService();
+    await service.criarTransacao({
+      conta_id: 'conta-1', subcategoria_id: null, descricao: 'Contrato mensal', valor: 2500,
+      tipo: 'Receita', data_transacao: '2026-08-31T12:00:00.000Z', status: 'Pago',
+      total_parcelas: 3, recorrente: true,
+    }, 'usuario-1');
+
+    const created = mocks.tx.transacao.createMany.mock.calls[0][0].data;
+    expect(created.map((item: any) => ({ valor: item.valor, status: item.status, parcela: item.parcela_atual }))).toEqual([
+      { valor: 2500, status: 'Pago', parcela: 1 },
+      { valor: 2500, status: 'Pendente', parcela: 2 },
+      { valor: 2500, status: 'Pendente', parcela: 3 },
+    ]);
+    expect(created.map((item: any) => item.data_transacao.toISOString())).toEqual([
+      '2026-08-31T12:00:00.000Z',
+      '2026-09-30T12:00:00.000Z',
+      '2026-10-31T12:00:00.000Z',
+    ]);
+    expect(mocks.tx.contaBancaria.update).toHaveBeenCalledWith({
+      where: { id: 'conta-1' }, data: { saldo_atual: { increment: 2500 } },
+    });
+  });
+
   it('cria os dois lados da transferência e atualiza ambas as contas atomicamente', async () => {
     mocks.accountOwnership
       .mockResolvedValueOnce({ id: 'conta-1', tipo: 'Corrente' })

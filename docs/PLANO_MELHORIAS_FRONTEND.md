@@ -208,4 +208,5 @@ Evoluir o frontend do Kakebo para que os fluxos financeiros sejam fáceis de ent
 - [x] Fase 4 — Estados de tela e primeiro uso
 - [x] Fase 5 — Navegação e arquitetura da informação
 - [ ] Fase 6 — Acessibilidade e design system
-- [ ] Fase 7 — Desempenho e resiliência da PWA
+  - Primeiro bloco concluído; auditoria das telas e formulários restantes em andamento. Consulte `FASE_6_FRONTEND.md`.
+- [x] Fase 7 — Desempenho e resiliência da PWA
