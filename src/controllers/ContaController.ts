@@ -356,6 +356,64 @@ export class ContaController {
         orderBy: { competencia: 'asc' },
       });
       if (explicitInvoices.length > 0) {
+        // Transacoes criadas antes da introducao de faturas explicitas podem nao ter
+        // fatura_id. Nao podemos ignora-las so porque o cartao tambem possui faturas
+        // novas, pois isso faz parcelas legadas desaparecerem da interface.
+        const legacyTransactions = await prisma.transacao.findMany({
+          where: { conta_id: id, usuario_id, fatura_id: null },
+          orderBy: { data_transacao: 'asc' },
+        });
+
+        const invoicesByMonth = new Map<string, any>(explicitInvoices.map((invoice) => [
+          invoice.competencia,
+          {
+            id: invoice.id,
+            mes: invoice.competencia,
+            status: invoice.status,
+            data_fechamento: invoice.data_fechamento,
+            data_vencimento: invoice.data_vencimento,
+            total_pago: Number(invoice.total_pago),
+            transacoes: invoice.transacoes.map((transaction) => ({
+              ...transaction,
+              impacto_fatura: getInvoiceImpact(transaction),
+            })),
+            pagamentos: invoice.pagamentos,
+          },
+        ]));
+
+        for (const transaction of legacyTransactions) {
+          const payment = isInvoicePayment(transaction.descricao);
+          const month = payment
+            ? getInvoiceMonthPaid(transaction.data_transacao, conta.cartao_detalhe.dia_fechamento)
+            : getBillingMonth(transaction.data_transacao, conta.cartao_detalhe.dia_fechamento);
+          let invoice = invoicesByMonth.get(month);
+          if (!invoice) {
+            invoice = { mes: month, total_pago: 0, transacoes: [], pagamentos: [] };
+            invoicesByMonth.set(month, invoice);
+          }
+          if (payment) invoice.total_pago += Number(transaction.valor);
+          invoice.transacoes.push({
+            ...transaction,
+            impacto_fatura: payment ? 0 : getInvoiceImpact(transaction),
+          });
+        }
+
+        const faturas = Array.from(invoicesByMonth.values())
+          .map((invoice) => {
+            // A soma dos lancamentos exibidos e a fonte de verdade da composicao da
+            // fatura. Isso tambem corrige totais defasados durante a transicao legada.
+            const total = invoice.transacoes.reduce(
+              (sum: number, transaction: any) => sum + Number(transaction.impacto_fatura),
+              0,
+            );
+            return {
+              ...invoice,
+              total,
+              saldo_restante: Math.max(0, total - invoice.total_pago),
+            };
+          })
+          .sort((a, b) => a.mes.localeCompare(b.mes));
+
         return res.json({
           conta: {
             id: conta.id,
@@ -364,21 +422,7 @@ export class ContaController {
             dia_fechamento: conta.cartao_detalhe.dia_fechamento,
             dia_vencimento: conta.cartao_detalhe.dia_vencimento,
           },
-          faturas: explicitInvoices.map((invoice) => ({
-            id: invoice.id,
-            mes: invoice.competencia,
-            status: invoice.status,
-            data_fechamento: invoice.data_fechamento,
-            data_vencimento: invoice.data_vencimento,
-            total: Number(invoice.total),
-            total_pago: Number(invoice.total_pago),
-            saldo_restante: Math.max(0, Number(invoice.total) - Number(invoice.total_pago)),
-            transacoes: invoice.transacoes.map((transaction) => ({
-              ...transaction,
-              impacto_fatura: getInvoiceImpact(transaction),
-            })),
-            pagamentos: invoice.pagamentos,
-          })),
+          faturas,
         });
       }
 

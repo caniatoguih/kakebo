@@ -87,6 +87,33 @@ describeDatabase('API com PostgreSQL isolado', () => {
     })).toBe(16);
     expect(await prisma.faturaCartao.count({ where: { cartao_id: card.body.id } })).toBe(16);
 
+    // Reproduz parcelas de cartao criadas antes da tabela de faturas: elas nao
+    // possuem fatura_id, mas devem continuar visiveis ao lado das faturas novas.
+    const legacyParentId = 'legacy-installments-integration';
+    await prisma.transacao.createMany({
+      data: [1, 2, 3].map((installment) => ({
+        usuario_id: account.body.usuario_id,
+        conta_id: card.body.id,
+        descricao: 'Compra parcelada legada',
+        valor: 40,
+        tipo: 'Despesa',
+        data_transacao: new Date(Date.UTC(2028, installment - 1, 5, 12)),
+        status: 'Pendente',
+        parcela_atual: installment,
+        total_parcelas: 3,
+        transacao_pai_id: legacyParentId,
+        fatura_id: null,
+      })),
+    });
+    const cardInvoices = await agent.get(`/api/contas/${card.body.id}/faturas`).expect(200);
+    const visibleLegacyInstallments = cardInvoices.body.faturas
+      .flatMap((invoice: { transacoes: Array<{ transacao_pai_id?: string }> }) => invoice.transacoes)
+      .filter((transaction: { transacao_pai_id?: string }) => transaction.transacao_pai_id === legacyParentId);
+    expect(visibleLegacyInstallments).toHaveLength(3);
+    expect(cardInvoices.body.faturas.find((invoice: { mes: string }) => invoice.mes === '2028-01')).toMatchObject({
+      total: 194.64,
+    });
+
     const destination = await agent.post('/api/contas').set('X-CSRF-Token', csrf).send({
       nome: 'Conta destino', tipo: 'Poupanca', saldo_inicial: 0,
     }).expect(201);
