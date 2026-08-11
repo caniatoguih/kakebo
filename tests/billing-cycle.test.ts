@@ -17,6 +17,15 @@ describe('ciclo de faturamento', () => {
     expect(getCashFlowMonthForCardTransaction(new Date('2026-08-20T00:00:00.000Z'), 25, 5)).toBe('2026-09');
   });
 
+  it('usa o vencimento da fatura vinculada no fluxo de caixa', () => {
+    expect(getCashFlowMonthForCardTransaction(
+      new Date('2026-08-01T00:00:00.000Z'),
+      30,
+      6,
+      new Date('2026-09-06T23:59:59.999Z'),
+    )).toBe('2026-09');
+  });
+
   it('distingue o ciclo aberto do último fechado', () => {
     const now = new Date('2026-08-15T12:00:00.000Z');
     expect(getOpenBillingCycle(now, 10, 17).competence).toBe('2026-09');

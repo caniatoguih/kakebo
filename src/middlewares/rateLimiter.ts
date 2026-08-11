@@ -3,7 +3,9 @@ import rateLimit from 'express-rate-limit';
 // General API rate limiter
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
+  // As jornadas E2E percorrem todas as telas em sequência e compartilham o mesmo
+  // IP no runner. Ambientes normais preservam a barreira mais restritiva.
+  limit: process.env.NODE_ENV === 'test' ? 300 : 100,
   standardHeaders: 'draft-7', // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
   message: {

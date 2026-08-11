@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Receipt, PiggyBank, CreditCard, Menu, LogOut, Tags, Cloud, ScrollText, X } from 'lucide-react';
+import { LayoutDashboard, Receipt, PiggyBank, CreditCard, Menu, LogOut, Tags, Cloud, ScrollText, X, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +15,7 @@ export function Layout() {
     { name: 'Fluxo de Caixa', shortName: 'Fluxo', description: 'Receitas, despesas e transferências', path: '/transacoes', icon: Receipt, primary: true },
     { name: 'Planejamento', shortName: 'Planejar', description: 'Orçamento mensal por categoria', path: '/planejamento', icon: PiggyBank, primary: true },
     { name: 'Visão Contábil', shortName: 'Contábil', description: 'Consolidação de saldos e movimentações por período', path: '/fluxo-contabil', icon: ScrollText, primary: false },
+    { name: 'Recorrências', shortName: 'Recorrências', description: 'Receitas, despesas e transferências recorrentes', path: '/recorrencias', icon: RefreshCw, primary: false },
     { name: 'Contas e Cartões', shortName: 'Contas', description: 'Saldos, cartões e faturas', path: '/contas', icon: CreditCard, primary: true },
     { name: 'Categorias', shortName: 'Categorias', description: 'Classificações de receitas e despesas', path: '/categorias', icon: Tags, primary: false },
   ];

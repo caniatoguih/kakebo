@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  outputDir: './test-results/e2e',
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR ?? './test-results/e2e',
   snapshotPathTemplate: '{testDir}/snapshots/{projectName}/{arg}{ext}',
   fullyParallel: false,
   workers: 1,

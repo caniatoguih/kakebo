@@ -189,6 +189,11 @@ export class RelatorioService {
             cartao_detalhe: true
           }
         },
+        fatura: {
+          select: {
+            data_vencimento: true
+          }
+        },
         subcategoria: {
           include: {
             categoria: true
@@ -210,6 +215,7 @@ export class RelatorioService {
           t.data_transacao,
           t.conta.cartao_detalhe.dia_fechamento,
           t.conta.cartao_detalhe.dia_vencimento,
+          t.fatura?.data_vencimento,
         );
       } else {
         mesStr = getNormalAccountMonthStr(t.data_transacao);

@@ -14,6 +14,7 @@ const Planejamento = React.lazy(() => import('./pages/Planejamento').then(m => (
 const Contas = React.lazy(() => import('./pages/Contas').then(m => ({ default: m.Contas })));
 const Categorias = React.lazy(() => import('./pages/Categorias').then(m => ({ default: m.Categorias })));
 const FluxoContabil = React.lazy(() => import('./pages/FluxoContabil').then(m => ({ default: m.FluxoContabil })));
+const Recorrencias = React.lazy(() => import('./pages/Recorrencias').then(m => ({ default: m.Recorrencias })));
 const Login = React.lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 const Cadastro = React.lazy(() => import('./pages/Cadastro').then(m => ({ default: m.Cadastro })));
 
@@ -66,6 +67,7 @@ function App() {
                     <Route path="fluxo-contabil" element={<FluxoContabil />} />
                     <Route path="contas" element={<Contas />} />
                     <Route path="categorias" element={<Categorias />} />
+                    <Route path="recorrencias" element={<Recorrencias />} />
                   </Route>
                 </Route>
               </Routes>

@@ -73,7 +73,15 @@ export function getLastClosedBillingCycle(now: Date, closingDay: number, dueDay:
   return getCycleByClosingMonth(previousClosing.getUTCFullYear(), previousClosing.getUTCMonth(), closingDay, dueDay);
 }
 
-export function getCashFlowMonthForCardTransaction(date: Date, closingDay: number, dueDay = closingDay): string {
+export function getCashFlowMonthForCardTransaction(
+  date: Date,
+  closingDay: number,
+  dueDay = closingDay,
+  invoiceDueDate?: Date | null,
+): string {
+  // Para compras vinculadas, o vencimento persistido na fatura e a fonte de
+  // verdade. O calculo pelo cartao permanece como compatibilidade com legados.
+  if (invoiceDueDate) return competenceOf(new Date(invoiceDueDate));
   const cycle = getBillingCycleForDate(date, closingDay, dueDay);
   return competenceOf(cycle.dueDate);
 }

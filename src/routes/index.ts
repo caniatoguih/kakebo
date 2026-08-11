@@ -8,6 +8,7 @@ import orcamentoRoutes from './orcamento.routes';
 import prisma from '../lib/prisma';
 import { renderMetrics } from '../observability/metrics';
 import auditoriaRoutes from './auditoria.routes';
+import recorrenciaRoutes from './recorrencia.routes';
 
 const routes = Router();
 
@@ -18,6 +19,7 @@ routes.use('/contas', contaRoutes);
 routes.use('/categorias', categoriaRoutes);
 routes.use('/orcamentos', orcamentoRoutes);
 routes.use('/auditoria', auditoriaRoutes);
+routes.use('/recorrencias', recorrenciaRoutes);
 
 // Rota de health check
 routes.get('/health', async (_req, res) => {

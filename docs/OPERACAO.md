@@ -27,6 +27,33 @@ O usuário autenticado pode consultar seus próprios eventos em:
 GET /api/auditoria?limit=50&cursor=<id-opcional>
 ```
 
+Alterações em recorrências usam a ação `ALTERAR_VALOR_RECORRENCIA`. O detalhe
+`GET /api/recorrencias/:id` retorna os 50 eventos mais recentes da própria série,
+incluindo competência inicial, escopo, valores anteriores, novo valor, faturas
+afetadas e `requestId` quando disponíveis.
+
+## Operação de recorrências
+
+O ajuste de valor possui uma simulação obrigatória. Uma resposta `409` na
+confirmação normalmente indica uma destas condições:
+
+- os dados mudaram desde a simulação;
+- existe lançamento ou fatura já paga;
+- uma fatura fechada ainda não recebeu confirmação explícita.
+
+Não repita automaticamente uma confirmação `409`. Solicite uma nova simulação e
+apresente o impacto atualizado ao usuário.
+
+Após implantar a funcionalidade, monitore:
+
+- taxa de 409 em `/api/recorrencias/:id/valor`;
+- erros 5xx e duração da simulação e confirmação;
+- eventos `ALTERAR_VALOR_RECORRENCIA` sem `request_id`;
+- divergências de saldo ou fatura na auditoria diária.
+
+A funcionalidade não adiciona tabelas ou colunas, portanto não exige migration.
+O deploy normal ainda deve executar a sincronização Prisma/Neon prevista no pipeline.
+
 ## Auditoria de saldos
 
 O comando abaixo é somente leitura e retorna código `1` quando encontra divergências:

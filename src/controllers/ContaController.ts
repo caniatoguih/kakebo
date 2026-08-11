@@ -99,6 +99,17 @@ function getInvoiceMonthPaid(dataTransacao: Date, diaFechamento: number): string
   return `${year}-${monthStr}`;
 }
 
+export function findNextOpenInvoice<T extends { data_fechamento: Date }>(
+  invoices: T[],
+  now: Date,
+): T | undefined {
+  return invoices.reduce<T | undefined>((closest, invoice) => {
+    if (invoice.data_fechamento <= now) return closest;
+    if (!closest || invoice.data_fechamento < closest.data_fechamento) return invoice;
+    return closest;
+  }, undefined);
+}
+
 export class ContaController {
   create = async (req: Request, res: Response) => {
     const usuario_id = req.usuario_id!;
@@ -173,18 +184,41 @@ export class ContaController {
           if (contaAtualizada.tipo === 'CartaoCredito' && contaAtualizada.cartao_detalhe) {
             const explicitInvoices = await prisma.faturaCartao.findMany({
               where: { cartao_id: contaAtualizada.id },
+              include: { transacoes: true },
               orderBy: { data_fechamento: 'desc' },
             });
             if (explicitInvoices.length > 0) {
               const now = new Date();
-              const openInvoice = explicitInvoices.find((invoice) => invoice.data_fechamento > now);
+              const openInvoice = findNextOpenInvoice(explicitInvoices, now);
               const closedInvoice = explicitInvoices.find((invoice) =>
                 invoice.data_fechamento <= now && Number(invoice.total) > Number(invoice.total_pago),
               );
+              const legacyTransactions = await prisma.transacao.findMany({
+                where: { conta_id: contaAtualizada.id, usuario_id, fatura_id: null },
+              });
+              const invoiceBalance = (invoice: typeof openInvoice): number => {
+                if (!invoice) return 0;
+                const linkedTotal = invoice.transacoes.reduce(
+                  (sum, transaction) => sum + getInvoiceImpact(transaction),
+                  0,
+                );
+                let legacyTotal = 0;
+                let legacyPaid = 0;
+                for (const transaction of legacyTransactions) {
+                  const payment = isInvoicePayment(transaction.descricao);
+                  const competence = payment
+                    ? getInvoiceMonthPaid(transaction.data_transacao, contaAtualizada.cartao_detalhe!.dia_fechamento)
+                    : getBillingMonth(transaction.data_transacao, contaAtualizada.cartao_detalhe!.dia_fechamento);
+                  if (competence !== invoice.competencia) continue;
+                  if (payment) legacyPaid += Number(transaction.valor);
+                  else legacyTotal += getInvoiceImpact(transaction);
+                }
+                return linkedTotal + legacyTotal - Number(invoice.total_pago) - legacyPaid;
+              };
               return {
                 ...contaAtualizada,
-                fatura_atual: openInvoice ? Number(openInvoice.total) - Number(openInvoice.total_pago) : 0,
-                fatura_fechada: closedInvoice ? Number(closedInvoice.total) - Number(closedInvoice.total_pago) : 0,
+                fatura_atual: Math.max(0, invoiceBalance(openInvoice)),
+                fatura_fechada: Math.max(0, invoiceBalance(closedInvoice)),
                 fatura_fechada_id: closedInvoice?.id,
                 fatura_fechada_competencia: closedInvoice?.competencia,
                 fatura_fechada_vencimento: closedInvoice?.data_vencimento,

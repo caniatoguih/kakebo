@@ -65,6 +65,7 @@ test('registra usuário e valida a navegação principal', async ({ page, isMobi
     await expect(sidebar.getByRole('link', { name: 'Fluxo de Caixa' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Planejamento' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Visão Contábil' })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: 'Recorrências' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Contas e Cartões' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Categorias' })).toBeVisible();
   }
@@ -119,6 +120,7 @@ test('registra usuário e valida a navegação principal', async ({ page, isMobi
     { path: '/contas', heading: 'Contas & Cartões', name: 'contas' },
     { path: '/categorias', heading: 'Gerenciar Categorias', name: 'categorias' },
     { path: '/fluxo-contabil', heading: 'Visão Contábil (DFC)', name: 'visao-contabil' },
+    { path: '/recorrencias', heading: 'Lançamentos recorrentes', name: 'recorrencias' },
   ];
   for (const destination of remainingPages) {
     await page.goto(destination.path);
@@ -147,4 +149,23 @@ test('registra usuário e valida a navegação principal', async ({ page, isMobi
   await page.keyboard.press('Escape');
   await expect(newAccount).toBeFocused();
   expect(consoleProblems, 'Os fluxos cobertos não devem emitir avisos de React, Radix ou componentes controlados').toEqual([]);
+});
+
+test('audita a tela de recorrências isoladamente', async ({ page }, testInfo) => {
+  const unique = `recorrencias-${testInfo.project.name}-${Date.now()}@e2e.kakebo.local`;
+  await page.goto('/cadastro');
+  await page.getByLabel('Nome').fill('Usuário Recorrências E2E');
+  await page.getByLabel('E-mail').fill(unique);
+  await page.getByLabel('Senha').fill('E2E!2026');
+  await page.getByRole('button', { name: 'Criar Conta' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByLabel('E-mail').fill(unique);
+  await page.getByLabel('Senha').fill('E2E!2026');
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.goto('/recorrencias');
+  await expect(page.getByRole('heading', { name: 'Lançamentos recorrentes', exact: true })).toBeVisible();
+  await expect(page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).resolves.toBe(true);
+  await auditAccessibility(page, testInfo, 'recorrencias-isolada');
 });

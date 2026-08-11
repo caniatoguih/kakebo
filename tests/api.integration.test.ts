@@ -72,7 +72,7 @@ describeDatabase('API com PostgreSQL isolado', () => {
       nome: 'Cartão recorrência', tipo: 'CartaoCredito', saldo_inicial: 0,
       limite_total: 5000, dia_fechamento: 10, dia_vencimento: 17,
     }).expect(201);
-    await agent.post('/api/transacoes').set('X-CSRF-Token', csrf).send({
+    const recurringCardTransaction = await agent.post('/api/transacoes').set('X-CSRF-Token', csrf).send({
       conta_id: card.body.id,
       descricao: 'Academia recorrente',
       valor: 154.64,
@@ -86,6 +86,102 @@ describeDatabase('API com PostgreSQL isolado', () => {
       where: { usuario_id: account.body.usuario_id, conta_id: card.body.id, recorrente: true },
     })).toBe(16);
     expect(await prisma.faturaCartao.count({ where: { cartao_id: card.body.id } })).toBe(16);
+
+    const recurringList = await agent.get('/api/recorrencias?tipo=Despesa&busca=academia&page=1&limit=10').expect(200);
+    expect(recurringList.body).toMatchObject({ total: 1, page: 1, limit: 10, total_pages: 1 });
+    expect(recurringList.body.recorrencias[0]).toMatchObject({
+      id: recurringCardTransaction.body.transacao_pai_id,
+      descricao: 'Academia recorrente',
+      tipo: 'Despesa',
+      ocorrencias_geradas: 16,
+      valor_atual: 154.64,
+    });
+    const recurringDetail = await agent
+      .get(`/api/recorrencias/${recurringCardTransaction.body.transacao_pai_id}`)
+      .expect(200);
+    expect(recurringDetail.body.ocorrencias).toHaveLength(16);
+    expect(recurringDetail.body.ocorrencias[0]).toMatchObject({ competencia: '2026-10', valor: 154.64 });
+    await agent.get('/api/recorrencias/00000000-0000-4000-8000-000000000000').expect(404);
+
+    await prisma.faturaCartao.update({
+      where: { id: recurringDetail.body.ocorrencias[0].fatura_id },
+      data: { status: 'Fechada' },
+    });
+    const closedInvoiceChange = {
+      novo_valor: 180,
+      competencia_inicial: '2026-10',
+      escopo: 'SomenteCompetencia',
+    };
+    const closedInvoiceSimulation = await agent
+      .post(`/api/recorrencias/${recurringCardTransaction.body.transacao_pai_id}/simular-alteracao`)
+      .set('X-CSRF-Token', csrf)
+      .send(closedInvoiceChange)
+      .expect(200);
+    expect(closedInvoiceSimulation.body).toMatchObject({
+      pode_executar: true,
+      requer_confirmacao_fatura_fechada: true,
+      ocorrencias_afetadas: 1,
+    });
+    await agent.patch(`/api/recorrencias/${recurringCardTransaction.body.transacao_pai_id}/valor`)
+      .set('X-CSRF-Token', csrf)
+      .send({
+        ...closedInvoiceChange,
+        simulacao_id: closedInvoiceSimulation.body.simulacao_id,
+        confirmar_faturas_fechadas: false,
+      })
+      .expect(409);
+    await agent.patch(`/api/recorrencias/${recurringCardTransaction.body.transacao_pai_id}/valor`)
+      .set('X-CSRF-Token', csrf)
+      .send({
+        ...closedInvoiceChange,
+        simulacao_id: closedInvoiceSimulation.body.simulacao_id,
+        confirmar_faturas_fechadas: true,
+      })
+      .expect(200);
+
+    const cardChangeInput = {
+      novo_valor: 200,
+      competencia_inicial: '2027-01',
+      escopo: 'DestaCompetenciaEmDiante',
+    };
+    const cardSimulation = await agent
+      .post(`/api/recorrencias/${recurringCardTransaction.body.transacao_pai_id}/simular-alteracao`)
+      .set('X-CSRF-Token', csrf)
+      .send(cardChangeInput)
+      .expect(200);
+    expect(cardSimulation.body).toMatchObject({
+      pode_executar: true,
+      ocorrencias_afetadas: 13,
+      lancamentos_afetados: 13,
+      diferenca_total: 589.68,
+      requer_confirmacao_fatura_fechada: false,
+    });
+    await agent.patch(`/api/recorrencias/${recurringCardTransaction.body.transacao_pai_id}/valor`)
+      .set('X-CSRF-Token', csrf)
+      .send({ ...cardChangeInput, simulacao_id: '0'.repeat(64), confirmar_faturas_fechadas: false })
+      .expect(409);
+    await agent.patch(`/api/recorrencias/${recurringCardTransaction.body.transacao_pai_id}/valor`)
+      .set('X-CSRF-Token', csrf)
+      .send({ ...cardChangeInput, simulacao_id: cardSimulation.body.simulacao_id, confirmar_faturas_fechadas: false })
+      .expect(200);
+    const changedCardOccurrences = await prisma.transacao.findMany({
+      where: { transacao_pai_id: recurringCardTransaction.body.transacao_pai_id },
+      orderBy: { data_transacao: 'asc' },
+    });
+    expect(Number(changedCardOccurrences[2].valor)).toBe(154.64);
+    expect(Number(changedCardOccurrences[3].valor)).toBe(200);
+    const changedCardDetail = await agent
+      .get(`/api/recorrencias/${recurringCardTransaction.body.transacao_pai_id}`)
+      .expect(200);
+    const cardAuditEvent = changedCardDetail.body.historico.find(
+      (event: { acao: string }) => event.acao === 'ALTERAR_VALOR_RECORRENCIA',
+    );
+    expect(cardAuditEvent.dados).toMatchObject({
+      competencia_inicial: '2027-01',
+      escopo: 'DestaCompetenciaEmDiante',
+      novo_valor: 200,
+    });
+    expect(cardAuditEvent.dados.valores_anteriores).toHaveLength(13);
 
     // Reproduz parcelas de cartao criadas antes da tabela de faturas: elas nao
     // possuem fatura_id, mas devem continuar visiveis ao lado das faturas novas.
@@ -111,7 +207,7 @@ describeDatabase('API com PostgreSQL isolado', () => {
       .filter((transaction: { transacao_pai_id?: string }) => transaction.transacao_pai_id === legacyParentId);
     expect(visibleLegacyInstallments).toHaveLength(3);
     expect(cardInvoices.body.faturas.find((invoice: { mes: string }) => invoice.mes === '2028-01')).toMatchObject({
-      total: 194.64,
+      total: 240,
     });
 
     const destination = await agent.post('/api/contas').set('X-CSRF-Token', csrf).send({
@@ -162,6 +258,77 @@ describeDatabase('API com PostgreSQL isolado', () => {
     const balancesAfterDelete = await agent.get('/api/contas').expect(200);
     expect(Number(balancesAfterDelete.body.find((item: { id: string }) => item.id === account.body.id).saldo_atual)).toBe(74.5);
     expect(Number(balancesAfterDelete.body.find((item: { id: string }) => item.id === destination.body.id).saldo_atual)).toBe(0);
+
+    const recurringTransfer = await agent.post('/api/transacoes').set('X-CSRF-Token', csrf).send({
+      conta_id: account.body.id,
+      conta_destino_id: destination.body.id,
+      descricao: 'Reserva recorrente',
+      valor: 50,
+      tipo: 'Transferencia',
+      data_transacao: '2026-09-05T12:00:00.000Z',
+      status: 'Pendente',
+      total_parcelas: 3,
+      recorrente: true,
+    }).expect(201);
+    const transferRecurrences = await agent
+      .get(`/api/recorrencias?tipo=Transferencia&conta_id=${destination.body.id}`)
+      .expect(200);
+    expect(transferRecurrences.body).toMatchObject({ total: 1 });
+    expect(transferRecurrences.body.recorrencias[0]).toMatchObject({
+      id: recurringTransfer.body.transacao_pai_id,
+      descricao: 'Reserva recorrente',
+      tipo: 'Transferencia',
+      ocorrencias_geradas: 3,
+      situacao: 'Ativa',
+      conta_origem: { id: account.body.id },
+      conta_destino: { id: destination.body.id },
+    });
+    const transferChangeInput = {
+      novo_valor: 75,
+      competencia_inicial: '2026-09',
+      escopo: 'SomenteCompetencia',
+    };
+    const transferSimulation = await agent
+      .post(`/api/recorrencias/${recurringTransfer.body.transacao_pai_id}/simular-alteracao`)
+      .set('X-CSRF-Token', csrf)
+      .send(transferChangeInput)
+      .expect(200);
+    expect(transferSimulation.body).toMatchObject({
+      pode_executar: true, ocorrencias_afetadas: 1, lancamentos_afetados: 2, diferenca_total: 25,
+    });
+    await agent.patch(`/api/recorrencias/${recurringTransfer.body.transacao_pai_id}/valor`)
+      .set('X-CSRF-Token', csrf)
+      .send({ ...transferChangeInput, simulacao_id: transferSimulation.body.simulacao_id, confirmar_faturas_fechadas: false })
+      .expect(200);
+    const changedTransferSides = await prisma.transacao.findMany({
+      where: { transacao_pai_id: recurringTransfer.body.transacao_pai_id, parcela_atual: 1 },
+    });
+    expect(changedTransferSides).toHaveLength(2);
+    expect(changedTransferSides.every((transaction) => Number(transaction.valor) === 75)).toBe(true);
+
+    const paidSeriesId = '99999999-9999-4999-8999-999999999999';
+    await prisma.transacao.createMany({ data: [
+      {
+        usuario_id: account.body.usuario_id, conta_id: account.body.id,
+        descricao: 'Recorrência já liquidada', valor: 30, tipo: 'Despesa',
+        data_transacao: new Date('2026-08-05T12:00:00.000Z'), status: 'Pago',
+        parcela_atual: 1, total_parcelas: 2, recorrente: true, transacao_pai_id: paidSeriesId,
+      },
+      {
+        usuario_id: account.body.usuario_id, conta_id: account.body.id,
+        descricao: 'Recorrência já liquidada', valor: 30, tipo: 'Despesa',
+        data_transacao: new Date('2026-09-05T12:00:00.000Z'), status: 'Pendente',
+        parcela_atual: 2, total_parcelas: 2, recorrente: true, transacao_pai_id: paidSeriesId,
+      },
+    ] });
+    const paidSimulation = await agent.post(`/api/recorrencias/${paidSeriesId}/simular-alteracao`)
+      .set('X-CSRF-Token', csrf)
+      .send({ novo_valor: 35, competencia_inicial: '2026-08', escopo: 'DestaCompetenciaEmDiante' })
+      .expect(200);
+    expect(paidSimulation.body.pode_executar).toBe(false);
+    expect(paidSimulation.body.competencias_bloqueadas).toContainEqual({
+      competencia: '2026-08', motivo: 'Lançamento já pago.',
+    });
 
     const metrics = await request(app).get('/api/metrics').expect(200);
     expect(metrics.text).toContain('kakebo_http_requests_total');
