@@ -68,6 +68,25 @@ describeDatabase('API com PostgreSQL isolado', () => {
     expect(audit.body.eventos[0]).toMatchObject({ acao: 'CRIAR', entidade: 'Transacao' });
     expect(audit.body.eventos[0].request_id).toBeTruthy();
 
+    const card = await agent.post('/api/contas').set('X-CSRF-Token', csrf).send({
+      nome: 'Cartão recorrência', tipo: 'CartaoCredito', saldo_inicial: 0,
+      limite_total: 5000, dia_fechamento: 10, dia_vencimento: 17,
+    }).expect(201);
+    await agent.post('/api/transacoes').set('X-CSRF-Token', csrf).send({
+      conta_id: card.body.id,
+      descricao: 'Academia recorrente',
+      valor: 154.64,
+      tipo: 'Despesa',
+      data_transacao: '2026-09-10T03:00:00.000Z',
+      status: 'Pendente',
+      total_parcelas: 16,
+      recorrente: true,
+    }).expect(201);
+    expect(await prisma.transacao.count({
+      where: { usuario_id: account.body.usuario_id, conta_id: card.body.id, recorrente: true },
+    })).toBe(16);
+    expect(await prisma.faturaCartao.count({ where: { cartao_id: card.body.id } })).toBe(16);
+
     const destination = await agent.post('/api/contas').set('X-CSRF-Token', csrf).send({
       nome: 'Conta destino', tipo: 'Poupanca', saldo_inicial: 0,
     }).expect(201);

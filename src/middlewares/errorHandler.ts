@@ -26,6 +26,7 @@ export const errorHandler = (
     process.env.NODE_ENV === 'production' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
   return res.status(500).json({
     message: 'Erro interno no servidor',
+    requestId: req.id,
     error: isProduction ? undefined : err.message,
     stack: isProduction ? undefined : err.stack
   });

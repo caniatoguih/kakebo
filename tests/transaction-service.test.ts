@@ -5,8 +5,9 @@ const mocks = vi.hoisted(() => {
     transacao: { create: vi.fn(), createMany: vi.fn() },
     transferenciaGrupo: { create: vi.fn() },
     contaBancaria: { update: vi.fn() },
-    faturaCartao: { upsert: vi.fn(), update: vi.fn() },
+    faturaCartao: { createMany: vi.fn(), findMany: vi.fn(), update: vi.fn() },
     auditoriaFinanceira: { create: vi.fn() },
+    $executeRaw: vi.fn(),
   };
   return {
     tx,
@@ -37,8 +38,14 @@ describe('criação financeira atômica', () => {
     mocks.subcategoryOwnership.mockResolvedValue(null);
     mocks.tx.transacao.createMany.mockResolvedValue({ count: 3 });
     mocks.tx.contaBancaria.update.mockResolvedValue({});
-    mocks.tx.faturaCartao.upsert.mockResolvedValue({ id: 'fatura-1' });
+    mocks.tx.faturaCartao.createMany.mockResolvedValue({ count: 3 });
+    mocks.tx.faturaCartao.findMany.mockResolvedValue([
+      { id: '11111111-1111-4111-8111-111111111111', competencia: '2025-02' },
+      { id: '22222222-2222-4222-8222-222222222222', competencia: '2025-03' },
+      { id: '33333333-3333-4333-8333-333333333333', competencia: '2025-04' },
+    ]);
     mocks.tx.faturaCartao.update.mockResolvedValue({});
+    mocks.tx.$executeRaw.mockResolvedValue(3);
     mocks.tx.auditoriaFinanceira.create.mockResolvedValue({});
     mocks.tx.transferenciaGrupo.create.mockResolvedValue({ id: 'grupo-1' });
   });
@@ -59,6 +66,9 @@ describe('criação financeira atômica', () => {
       '2025-02-28T12:00:00.000Z',
       '2025-03-31T12:00:00.000Z',
     ]);
+    expect(mocks.tx.faturaCartao.createMany).toHaveBeenCalledOnce();
+    expect(mocks.tx.faturaCartao.findMany).toHaveBeenCalledOnce();
+    expect(mocks.tx.$executeRaw).toHaveBeenCalledOnce();
     expect(mocks.tx.contaBancaria.update).toHaveBeenCalledWith({
       where: { id: 'conta-1' }, data: { saldo_atual: { increment: 100 } },
     });

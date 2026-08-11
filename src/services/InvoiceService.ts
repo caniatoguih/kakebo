@@ -28,27 +28,40 @@ export class InvoiceService {
     dueDay: number,
     transactions: InvoiceTransactionInput[],
   ): Promise<void> {
+    const cycles = new Map<string, ReturnType<typeof getBillingCycleForDate>>();
+    for (const transaction of transactions) {
+      const cycle = getBillingCycleForDate(new Date(transaction.data_transacao), closingDay, dueDay);
+      cycles.set(cycle.competence, cycle);
+    }
+
+    await tx.faturaCartao.createMany({
+      data: [...cycles.values()].map((cycle) => ({
+        usuario_id: usuarioId,
+        cartao_id: cartaoId,
+        competencia: cycle.competence,
+        data_inicio: cycle.start,
+        data_fim: cycle.end,
+        data_fechamento: cycle.closingDate,
+        data_vencimento: cycle.dueDate,
+        status: cycle.closingDate <= new Date() ? 'Fechada' as const : 'Aberta' as const,
+      })),
+      skipDuplicates: true,
+    });
+
+    const invoices = await tx.faturaCartao.findMany({
+      where: { cartao_id: cartaoId, competencia: { in: [...cycles.keys()] } },
+      select: { id: true, competencia: true },
+    });
+    const invoiceByCompetence = new Map(invoices.map((invoice) => [invoice.competencia, invoice.id]));
     const groups = new Map<string, { invoiceId: string; totalCents: number }>();
 
     for (const transaction of transactions) {
       const cycle = getBillingCycleForDate(new Date(transaction.data_transacao), closingDay, dueDay);
       let group = groups.get(cycle.competence);
       if (!group) {
-        const invoice = await tx.faturaCartao.upsert({
-          where: { cartao_id_competencia: { cartao_id: cartaoId, competencia: cycle.competence } },
-          update: {},
-          create: {
-            usuario_id: usuarioId,
-            cartao_id: cartaoId,
-            competencia: cycle.competence,
-            data_inicio: cycle.start,
-            data_fim: cycle.end,
-            data_fechamento: cycle.closingDate,
-            data_vencimento: cycle.dueDate,
-            status: cycle.closingDate <= new Date() ? 'Fechada' : 'Aberta',
-          },
-        });
-        group = { invoiceId: invoice.id, totalCents: 0 };
+        const invoiceId = invoiceByCompetence.get(cycle.competence);
+        if (!invoiceId) throw new Error(`Não foi possível preparar a fatura ${cycle.competence}.`);
+        group = { invoiceId, totalCents: 0 };
         groups.set(cycle.competence, group);
       }
 
@@ -62,11 +75,18 @@ export class InvoiceService {
       });
     }
 
-    for (const group of groups.values()) {
-      if (group.totalCents !== 0) await tx.faturaCartao.update({
-        where: { id: group.invoiceId },
-        data: { total: { increment: fromCents(group.totalCents) } },
-      });
+    const updates = [...groups.values()].filter((group) => group.totalCents !== 0);
+    if (updates.length > 0) {
+      const values = Prisma.join(updates.map((group) => Prisma.sql`(
+        CAST(${group.invoiceId} AS text),
+        CAST(${fromCents(group.totalCents)} AS numeric)
+      )`));
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE faturas_cartao AS invoice
+        SET total = invoice.total + changes.delta
+        FROM (VALUES ${values}) AS changes(id, delta)
+        WHERE invoice.id = changes.id
+      `);
     }
   }
 
