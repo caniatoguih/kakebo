@@ -137,7 +137,7 @@ describe('NovaTransacaoModal', () => {
     expect(screen.getByText('Conta de Origem')).toBeInTheDocument();
     expect(screen.getByText('Conta de Destino')).toBeInTheDocument();
     expect(screen.queryByText('Subcategoria (Opcional)')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Frequência do lançamento')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Frequência do lançamento')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Aplicação mensal' } });
     fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '20000' } });
@@ -155,6 +155,30 @@ describe('NovaTransacaoModal', () => {
 
     await waitFor(() => expect(mocks.criar).toHaveBeenCalledWith(expect.objectContaining({
       tipo: 'Transferencia', valor: 200,
+      conta_id: '11111111-1111-4111-8111-111111111111',
+      conta_destino_id: '22222222-2222-4222-8222-222222222222',
+    })));
+  });
+
+  it('registra uma transferência recorrente entre as mesmas contas', async () => {
+    renderModal();
+    await userEvent.click(screen.getByRole('button', { name: 'Nova Transação' }));
+    await waitFor(() => expect(mocks.contas).toHaveBeenCalled());
+
+    await userEvent.click(screen.getByRole('button', { name: /Transferência.*Entre suas contas/i }));
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Aporte mensal' } });
+    fireEvent.change(screen.getByLabelText('Valor'), { target: { value: '30000' } });
+    await chooseSelect(1, /Conta principal/);
+    await userEvent.click(screen.getAllByRole('combobox')[2]);
+    await userEvent.click(await screen.findByRole('option', { name: /Reserva/ }));
+    await userEvent.click(screen.getByLabelText('Frequência do lançamento'));
+    await userEvent.click(await screen.findByRole('option', { name: /Recorrente/ }));
+    expect(screen.queryByRole('option', { name: /Parcelado/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Duração da Recorrência (meses)'), { target: { value: '6' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar Transação' }));
+
+    await waitFor(() => expect(mocks.criar).toHaveBeenCalledWith(expect.objectContaining({
+      tipo: 'Transferencia', valor: 300, total_parcelas: 6, recorrente: true,
       conta_id: '11111111-1111-4111-8111-111111111111',
       conta_destino_id: '22222222-2222-4222-8222-222222222222',
     })));

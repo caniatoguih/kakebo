@@ -113,4 +113,42 @@ describe('criação financeira atômica', () => {
       where: { id: 'conta-2' }, data: { saldo_atual: { increment: 40 } },
     });
   });
+
+  it('cria os dois lados de cada transferência recorrente e movimenta apenas a primeira ocorrência', async () => {
+    mocks.accountOwnership
+      .mockResolvedValueOnce({ id: 'conta-1', tipo: 'Corrente' })
+      .mockResolvedValueOnce({ id: 'conta-2', tipo: 'Poupanca' });
+    mocks.tx.transferenciaGrupo.create
+      .mockResolvedValueOnce({ id: 'grupo-1' })
+      .mockResolvedValueOnce({ id: 'grupo-2' })
+      .mockResolvedValueOnce({ id: 'grupo-3' });
+    mocks.tx.transacao.create.mockImplementation(async ({ data }: any) => ({ id: `transacao-${mocks.tx.transacao.create.mock.calls.length}`, ...data }));
+
+    const service = new TransacaoService();
+    const result = await service.criarTransacao({
+      conta_id: 'conta-1', conta_destino_id: 'conta-2', descricao: 'Aporte mensal', valor: 300,
+      tipo: 'Transferencia', data_transacao: '2026-08-31T12:00:00.000Z', status: 'Pago',
+      total_parcelas: 3, recorrente: true,
+    }, 'usuario-1');
+
+    expect(mocks.tx.transferenciaGrupo.create).toHaveBeenCalledTimes(3);
+    expect(mocks.tx.transacao.create).toHaveBeenCalledTimes(6);
+    const created = mocks.tx.transacao.create.mock.calls.map(([call]) => call.data);
+    expect(created.map((item: any) => ({ parcela: item.parcela_atual, status: item.status, direcao: item.transferencia_direcao }))).toEqual([
+      { parcela: 1, status: 'Pago', direcao: 'Saida' },
+      { parcela: 1, status: 'Pago', direcao: 'Entrada' },
+      { parcela: 2, status: 'Pendente', direcao: 'Saida' },
+      { parcela: 2, status: 'Pendente', direcao: 'Entrada' },
+      { parcela: 3, status: 'Pendente', direcao: 'Saida' },
+      { parcela: 3, status: 'Pendente', direcao: 'Entrada' },
+    ]);
+    expect(new Set(created.map((item: any) => item.transacao_pai_id)).size).toBe(1);
+    expect(mocks.tx.contaBancaria.update).toHaveBeenNthCalledWith(1, {
+      where: { id: 'conta-1' }, data: { saldo_atual: { increment: -300 } },
+    });
+    expect(mocks.tx.contaBancaria.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 'conta-2' }, data: { saldo_atual: { increment: 300 } },
+    });
+    expect(result).toEqual(expect.objectContaining({ message: '3 transferências recorrentes criadas com sucesso.' }));
+  });
 });

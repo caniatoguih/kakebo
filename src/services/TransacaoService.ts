@@ -54,37 +54,51 @@ export class TransacaoService {
       if (conta_destino_id === conta.id) throw new Error('A conta de destino deve ser diferente da origem.');
       const contaDestino = await assertAccountOwnership(conta_destino_id, usuario_id);
       const descricaoBase = String(rest.descricao).replace(/^\[(?:Saída|Entrada)\]\s*/, '');
+      const isTransferenciaRecorrente = isRecorrente && totalParcelas > 1;
+      const quantidade = isTransferenciaRecorrente ? totalParcelas : 1;
+      const transacao_pai_id = isTransferenciaRecorrente ? uuidv4() : null;
 
       return prisma.$transaction(async (tx) => {
-        const group = await tx.transferenciaGrupo.create({
-          data: { usuario_id, descricao: descricaoBase },
-        });
-        const comum = {
-          usuario_id,
-          subcategoria_id: null,
-          valor: valorNumerico,
-          tipo: 'Transferencia' as const,
-          data_transacao: primeiraData,
-          status: rest.status,
-          total_parcelas: 1,
-          parcela_atual: 1,
-          recorrente: false,
-          transferencia_grupo_id: group.id,
-        };
-        const saida = await tx.transacao.create({
-          data: { ...comum, conta_id: conta.id, descricao: `[Saída] ${descricaoBase}`, transferencia_direcao: 'Saida' },
-        });
-        const entrada = await tx.transacao.create({
-          data: { ...comum, conta_id: contaDestino.id, descricao: `[Entrada] ${descricaoBase}`, transferencia_direcao: 'Entrada' },
-        });
+        let primeiraSaidaId = '';
+        let primeiraEntradaId = '';
+        let primeiroGrupoId = '';
+        for (let i = 1; i <= quantidade; i++) {
+          const group = await tx.transferenciaGrupo.create({
+            data: { usuario_id, descricao: descricaoBase },
+          });
+          const comum = {
+            usuario_id,
+            subcategoria_id: null,
+            valor: valorNumerico,
+            tipo: 'Transferencia' as const,
+            data_transacao: addMonthsClamped(primeiraData, i - 1, anchorDay),
+            status: i === 1 ? rest.status : 'Pendente' as const,
+            total_parcelas: quantidade,
+            parcela_atual: i,
+            recorrente: isTransferenciaRecorrente,
+            transacao_pai_id,
+            transferencia_grupo_id: group.id,
+          };
+          const saida = await tx.transacao.create({
+            data: { ...comum, conta_id: conta.id, descricao: `[Saída] ${descricaoBase}`, transferencia_direcao: 'Saida' },
+          });
+          const entrada = await tx.transacao.create({
+            data: { ...comum, conta_id: contaDestino.id, descricao: `[Entrada] ${descricaoBase}`, transferencia_direcao: 'Entrada' },
+          });
+          if (i === 1) {
+            primeiroGrupoId = group.id;
+            primeiraSaidaId = saida.id;
+            primeiraEntradaId = entrada.id;
+          }
+        }
 
         const impactoSaida = calculateBalanceImpactCents({
           accountType: conta.tipo, transactionType: 'Transferencia', status: rest.status,
-          description: saida.descricao, value: valorNumerico,
+          description: `[Saída] ${descricaoBase}`, value: valorNumerico,
         });
         const impactoEntrada = calculateBalanceImpactCents({
           accountType: contaDestino.tipo, transactionType: 'Transferencia', status: rest.status,
-          description: entrada.descricao, value: valorNumerico,
+          description: `[Entrada] ${descricaoBase}`, value: valorNumerico,
         });
         if (impactoSaida !== 0) await tx.contaBancaria.update({
           where: { id: conta.id }, data: { saldo_atual: { increment: fromCents(impactoSaida) } },
@@ -93,10 +107,13 @@ export class TransacaoService {
           where: { id: contaDestino.id }, data: { saldo_atual: { increment: fromCents(impactoEntrada) } },
         });
         await recordFinancialAudit(tx, {
-          usuarioId: usuario_id, action: 'CRIAR_TRANSFERENCIA', entity: 'TransferenciaGrupo', entityId: group.id,
-          data: { conta_origem_id: conta.id, conta_destino_id: contaDestino.id, transacao_saida_id: saida.id, transacao_entrada_id: entrada.id },
+          usuarioId: usuario_id, action: isTransferenciaRecorrente ? 'CRIAR_TRANSFERENCIA_RECORRENTE' : 'CRIAR_TRANSFERENCIA',
+          entity: isTransferenciaRecorrente ? 'Transacao' : 'TransferenciaGrupo', entityId: transacao_pai_id ?? primeiroGrupoId,
+          data: { conta_origem_id: conta.id, conta_destino_id: contaDestino.id, transacao_saida_id: primeiraSaidaId, transacao_entrada_id: primeiraEntradaId, quantidade },
         });
-        return { message: 'Transferência registrada com sucesso.', transferencia_grupo_id: group.id };
+        return isTransferenciaRecorrente
+          ? { message: `${quantidade} transferências recorrentes criadas com sucesso.`, transacao_pai_id }
+          : { message: 'Transferência registrada com sucesso.', transferencia_grupo_id: primeiroGrupoId };
       });
     }
 

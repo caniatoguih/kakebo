@@ -146,7 +146,7 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
         return;
       }
     }
-    if (!editItem && data.tipo !== 'Transferencia' && tipoRepeticao !== 'Unica' && Number(data.total_parcelas) < 2) {
+    if (!editItem && tipoRepeticao !== 'Unica' && Number(data.total_parcelas) < 2) {
       setError('total_parcelas', { message: 'Informe pelo menos 2 meses.' });
       return;
     }
@@ -231,7 +231,7 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
                         setValue('subcategoria_id', '');
                         if (option.value !== 'Transferencia') {
                           setValue('conta_destino_id', '');
-                        } else {
+                        } else if (tipoRepeticao === 'Parcelada') {
                           setTipoRepeticao('Unica');
                           setValue('total_parcelas', 1);
                         }
@@ -422,7 +422,7 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
             </Select>
           </div>}
 
-          {tipo !== 'Transferencia' && !editItem && (
+          {!editItem && (
             <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800/80">
               <div className="space-y-1.5">
                 <Label htmlFor="transaction-repetition">Frequência do lançamento</Label>
@@ -435,7 +435,7 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Unica">Lançamento único</SelectItem>
-                    <SelectItem value="Parcelada">Parcelado (dividir o valor entre os meses)</SelectItem>
+                    {tipo !== 'Transferencia' && <SelectItem value="Parcelada">Parcelado (dividir o valor entre os meses)</SelectItem>}
                     <SelectItem value="Recorrente">Recorrente (repetir o valor integral por mês)</SelectItem>
                   </SelectContent>
                 </Select>
