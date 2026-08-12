@@ -14,6 +14,8 @@ import { orcamentosService } from '@/services/orcamentosService';
 import { transacoesService } from '@/services/transacoesService';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { FinancialTrendChart } from '@/components/FinancialTrendChart';
+import { BudgetDeviationChart } from '@/components/BudgetDeviationChart';
 
 const BudgetComparisonChart = React.lazy(() => import('@/components/BudgetComparisonChart').then((module) => ({ default: module.BudgetComparisonChart })));
 
@@ -62,6 +64,17 @@ const PILAR_ORDER: Pilar[] = ['Sobrevivencia', 'Lazer', 'Cultura', 'Extras'];
 const brl = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
+const decimal = (value: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(value);
+const percent = (value: number | null) => value === null ? '—' : `${decimal(value)}%`;
+
+function Comparison({ value, inverse = false }: { value: number | null; inverse?: boolean }) {
+  if (value === null) return <span className="text-xs text-muted-foreground">Sem base no mês anterior</span>;
+  const favorable = inverse ? value <= 0 : value >= 0;
+  return <span className={`text-xs font-medium ${favorable ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+    {value >= 0 ? '▲' : '▼'} {Math.abs(value).toFixed(0)}% vs. mês anterior
+  </span>;
+}
+
 export function Dashboard(): React.ReactElement {
   const { usuario } = useAuth();
   const today = new Date();
@@ -85,7 +98,6 @@ export function Dashboard(): React.ReactElement {
 
   const mesLabel = format(currentDate, 'MMMM yyyy', { locale: ptBR });
   const mesCapitalized = mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1);
-  const monthContext = `${ano}-${String(mes).padStart(2, '0')}`;
   const hasMonthlyData = !!data && (data.resumo.total_orcado !== 0 || data.resumo.total_realizado !== 0);
 
   // Formatar dados para o gráfico principal
@@ -140,59 +152,77 @@ export function Dashboard(): React.ReactElement {
 
       {!isLoading && !isError && data && (
         <>
-          {/* Cards de Resumo */}
-          <div className="grid gap-4 md:grid-cols-3">
+          {/* Indicadores financeiros principais */}
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Indicadores financeiros do mês">
             <Card className="bg-card">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Total Orçado
-                </CardTitle>
-                <Target className="h-4 w-4 text-muted-foreground" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2 md:p-5 md:pb-2">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Receitas</CardTitle>
+                <TrendingUp className="h-4 w-4 text-emerald-600" />
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{brl(data.resumo.total_orcado)}</div>
-                <p className="text-xs text-muted-foreground mt-1">O que você planejou gastar.</p>
-                <Button asChild variant="link" className="mt-2 h-auto p-0"><Link to={`/planejamento?mes=${monthContext}`}>Ver planejamento</Link></Button>
+              <CardContent className="p-4 pt-0 md:p-5 md:pt-0">
+                <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400 md:text-2xl">{brl(data.resumo.receitas_realizadas)}</div>
+                <Comparison value={data.comparacao_mes_anterior.receitas_percentual} />
               </CardContent>
             </Card>
 
             <Card className="bg-card">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Total Realizado
-                </CardTitle>
-                <Wallet className="h-4 w-4 text-muted-foreground" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2 md:p-5 md:pb-2">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Despesas</CardTitle>
+                <TrendingDown className="h-4 w-4 text-rose-500" />
               </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold ${data.resumo.total_realizado > data.resumo.total_orcado ? 'text-red-500' : ''}`}>
-                  {brl(data.resumo.total_realizado)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">O que realmente saiu do bolso.</p>
-                <Button asChild variant="link" className="mt-2 h-auto p-0"><Link to={`/transacoes?periodo=Mes&mes=${monthContext}`}>Ver lançamentos do mês</Link></Button>
+              <CardContent className="p-4 pt-0 md:p-5 md:pt-0">
+                <div className="text-xl font-bold md:text-2xl">{brl(data.resumo.despesas_realizadas)}</div>
+                <Comparison value={data.comparacao_mes_anterior.despesas_percentual} inverse />
+                {data.resumo.despesas_previstas > 0 && <p className="mt-1 text-xs text-muted-foreground">+ {brl(data.resumo.despesas_previstas)} previsto</p>}
               </CardContent>
             </Card>
 
-            <Card className={`border ${data.resumo.saldo_geral >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Balanço (Economia)
-                </CardTitle>
-                {data.resumo.saldo_geral >= 0 ? (
-                  <TrendingUp className="h-4 w-4 text-emerald-700" />
-                ) : (
-                  <TrendingDown className="h-4 w-4 text-red-500" />
-                )}
+            <Card className={`border ${data.resumo.resultado_real >= 0 ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900 dark:bg-emerald-950/20' : 'border-rose-200 bg-rose-50/70 dark:border-rose-900 dark:bg-rose-950/20'}`}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2 md:p-5 md:pb-2">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Resultado real</CardTitle>
+                {data.resumo.resultado_real >= 0 ? <TrendingUp className="h-4 w-4 text-emerald-700" /> : <TrendingDown className="h-4 w-4 text-rose-600" />}
               </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold ${data.resumo.saldo_geral >= 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
-                  {brl(data.resumo.saldo_geral)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {data.resumo.saldo_geral >= 0 ? 'Sobrou neste mês. Excelente!' : 'Você ultrapassou o orçamento.'}
-                </p>
+              <CardContent className="p-4 pt-0 md:p-5 md:pt-0">
+                <div className={`text-xl font-bold md:text-2xl ${data.resumo.resultado_real >= 0 ? 'text-emerald-800 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>{brl(data.resumo.resultado_real)}</div>
+                <p className="text-xs text-muted-foreground">Receitas menos despesas pagas</p>
               </CardContent>
             </Card>
-          </div>
+
+            <Card className="bg-card">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2 md:p-5 md:pb-2">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Taxa de poupança</CardTitle>
+                <Target className="h-4 w-4 text-indigo-500" />
+              </CardHeader>
+              <CardContent className="p-4 pt-0 md:p-5 md:pt-0">
+                <div className="text-xl font-bold md:text-2xl">{percent(data.resumo.taxa_poupanca)}</div>
+                <p className="text-xs text-muted-foreground">Parcela da renda preservada</p>
+              </CardContent>
+            </Card>
+          </section>
+
+          {data.insights.length > 0 && <section className="space-y-3" aria-labelledby="insights-title">
+            <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-amber-500" /><h2 id="insights-title" className="text-lg font-semibold">Insights do mês</h2></div>
+            <div className="grid gap-3 lg:grid-cols-3">
+              {data.insights.map((insight) => <Card key={insight.titulo} className={insight.tipo === 'atencao' ? 'border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20' : insight.tipo === 'positivo' ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20' : 'bg-card'}>
+                <CardContent className="p-4">
+                  <h3 className="font-semibold">{insight.titulo}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{insight.descricao}</p>
+                  {insight.destino && <Button asChild variant="link" className="mt-2 h-auto p-0"><Link to={insight.destino}>Ver detalhes →</Link></Button>}
+                </CardContent>
+              </Card>)}
+            </div>
+          </section>}
+
+          <section className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
+            <Card className="min-w-0">
+              <CardHeader><CardTitle>Evolução financeira</CardTitle><CardDescription>Receitas e despesas efetivamente realizadas nos últimos seis meses.</CardDescription></CardHeader>
+              <CardContent><FinancialTrendChart data={data.historico} /></CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Maiores desvios</CardTitle><CardDescription>Categorias que mais se afastaram do planejamento.</CardDescription></CardHeader>
+              <CardContent><BudgetDeviationChart data={data.desvios} /></CardContent>
+            </Card>
+          </section>
 
           {/* Gráfico Principal */}
           {hasMonthlyData ? <Card className="min-w-0 border-border">
@@ -204,6 +234,36 @@ export function Dashboard(): React.ReactElement {
               <Suspense fallback={<div className="mt-4 h-[350px] animate-pulse rounded-xl bg-muted" aria-label="Carregando gráfico" />}><BudgetComparisonChart data={chartData} /></Suspense>
             </CardContent>
           </Card> : <EmptyState icon={Target} title="Ainda não há dados para comparar neste mês" description="Crie um orçamento e registre movimentações para visualizar o comparativo entre o planejado e o realizado." action={<><Button asChild variant="outline"><Link to="/planejamento">Planejar o mês</Link></Button><Button asChild><Link to="/transacoes">Registrar movimentação</Link></Button></>} />}
+
+          <section className="grid gap-4 lg:grid-cols-2" aria-label="Projeção e saúde financeira">
+            <Card>
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div><CardTitle>Projeção de fechamento</CardTitle><CardDescription>Estimativa baseada no ritmo atual e nos compromissos pendentes.</CardDescription></div>
+                <Target className="h-5 w-5 shrink-0 text-indigo-500" />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-950/40"><p className="text-xs text-muted-foreground">Despesas projetadas</p><p className="mt-1 font-bold">{brl(data.projecao.despesas_projetadas)}</p></div>
+                  <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-950/40"><p className="text-xs text-muted-foreground">Resultado projetado</p><p className={`mt-1 font-bold ${data.projecao.resultado_projetado >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{brl(data.projecao.resultado_projetado)}</p></div>
+                </div>
+                {data.projecao.percentual_orcamento_projetado !== null && <div>
+                  <div className="mb-2 flex justify-between text-xs"><span className="text-muted-foreground">Consumo projetado do orçamento</span><strong>{percent(data.projecao.percentual_orcamento_projetado)}</strong></div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className={`h-full rounded-full ${data.projecao.percentual_orcamento_projetado > 100 ? 'bg-rose-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(100, data.projecao.percentual_orcamento_projetado)}%` }} /></div>
+                </div>}
+                <p className="text-xs text-muted-foreground">{brl(data.projecao.compromissos_pendentes)} em despesas previstas. Projeções são estimativas, não garantias.</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle>Saúde financeira</CardTitle><CardDescription>Sinais de comprometimento, crédito e proteção financeira.</CardDescription></CardHeader>
+              <CardContent className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Essenciais / renda</p><p className="mt-2 text-lg font-bold">{percent(data.saude.percentual_renda_essenciais)}</p><p className="text-xs text-muted-foreground">{brl(data.saude.despesas_essenciais)}</p></div>
+                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Recorrências / renda</p><p className="mt-2 text-lg font-bold">{percent(data.saude.percentual_renda_recorrencias)}</p><p className="text-xs text-muted-foreground">{brl(data.saude.compromissos_recorrentes)}</p></div>
+                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Uso dos cartões</p><p className="mt-2 text-lg font-bold">{percent(data.saude.utilizacao_cartoes)}</p><p className="text-xs text-muted-foreground">{brl(data.saude.faturas_abertas)} em aberto</p></div>
+                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Cobertura da reserva</p><p className="mt-2 text-lg font-bold">{data.saude.meses_cobertura === null ? '—' : `${decimal(data.saude.meses_cobertura)} meses`}</p><p className="text-xs text-muted-foreground">{brl(data.saude.reserva)} em poupança</p></div>
+              </CardContent>
+            </Card>
+          </section>
 
           {/* Detalhamento dos Pilares */}
           <div className="space-y-4">

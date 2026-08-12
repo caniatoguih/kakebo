@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { QueryErrorState } from '@/components/QueryErrorState';
 import { EmptyState } from '@/components/EmptyState';
 import { Link } from 'react-router-dom';
-import { ChevronDown, ChevronRight, ScrollText, TrendingUp, TrendingDown, DollarSign, Wallet, Eye, CheckCircle2, AlertCircle, Printer, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ScrollText, TrendingUp, TrendingDown, DollarSign, Wallet, Eye, CheckCircle2, AlertCircle, Printer, Maximize2, Minimize2 } from 'lucide-react';
 
 // Formata valor monetário em BRL
 const formatCurrency = (val: number) => {
@@ -31,9 +31,18 @@ const formatMonthLabel = (monthStr: string) => {
 };
 
 export function FluxoContabil() {
+  const currentMonth = useMemo(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
   // Modo de filtro: 'Personalizado' ou 'Anual'
   const [filtroModo, setFiltroModo] = useState<'Personalizado' | 'Anual'>('Anual');
-  const [anoSelecionado, setAnoSelecionado] = useState<string>('2026');
+  const [anoSelecionado, setAnoSelecionado] = useState<string>(() => String(new Date().getFullYear()));
+  const [mobileMonth, setMobileMonth] = useState(currentMonth);
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches
+  );
 
   // Filtro de status: 'Pago' (Realizado), 'Pendente' (Previsto), 'Ambos'
   const [statusFilter, setStatusFilter] = useState<'Pago' | 'Pendente' | 'Ambos'>('Ambos');
@@ -54,6 +63,15 @@ export function FluxoContabil() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullScreen]);
 
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(max-width: 767px)');
+    const updateViewport = () => setIsMobileViewport(media.matches);
+    updateViewport();
+    media.addEventListener('change', updateViewport);
+    return () => media.removeEventListener('change', updateViewport);
+  }, []);
+
   // Define datas de início e fim baseadas no modo de filtro
   const [startMonthCustom, setStartMonthCustom] = useState<string>(() => {
     const d = new Date();
@@ -68,6 +86,9 @@ export function FluxoContabil() {
 
   // Calcula startMonth e endMonth reais a serem passados para a API
   const { startMonth, endMonth } = useMemo(() => {
+    if (isMobileViewport) {
+      return { startMonth: mobileMonth, endMonth: mobileMonth };
+    }
     if (filtroModo === 'Anual') {
       return {
         startMonth: `${anoSelecionado}-01`,
@@ -79,7 +100,7 @@ export function FluxoContabil() {
         endMonth: endMonthCustom
       };
     }
-  }, [filtroModo, anoSelecionado, startMonthCustom, endMonthCustom]);
+  }, [isMobileViewport, mobileMonth, filtroModo, anoSelecionado, startMonthCustom, endMonthCustom]);
 
   // Query das contas bancárias
   const { data: contas } = useQuery({
@@ -96,15 +117,17 @@ export function FluxoContabil() {
       statusFilter,
       contaSelecionada === 'all' ? undefined : contaSelecionada
     ),
+    placeholderData: (previousData) =>
+      !isMobileViewport || previousData?.meses?.includes(mobileMonth) ? previousData : undefined,
   });
 
   // Estados de expansão das categorias
   const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({});
 
-  const toggleCategory = (catName: string) => {
+  const toggleCategory = (categoryKey: string) => {
     setExpandedCategories(prev => ({
       ...prev,
-      [catName]: !prev[catName]
+      [categoryKey]: !prev[categoryKey]
     }));
   };
 
@@ -123,10 +146,10 @@ export function FluxoContabil() {
   const expandAll = () => {
     const allCats: { [key: string]: boolean } = {};
     dfc.entradas.forEach((cat: any) => {
-      allCats[cat.categoria_nome] = true;
+      allCats[`entrada:${cat.categoria_nome}`] = true;
     });
     dfc.saidas.forEach((cat: any) => {
-      allCats[cat.categoria_nome] = true;
+      allCats[`saida:${cat.categoria_nome}`] = true;
     });
     setExpandedCategories(allCats);
   };
@@ -141,10 +164,15 @@ export function FluxoContabil() {
   };
 
   // Geração de opções de meses para os seletores
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return Array.from({ length: 5 }, (_, index) => String(currentYear - 2 + index));
+  }, []);
+
   const monthOptions = useMemo(() => {
     const options = [];
-    const years = [2024, 2025, 2026, 2027];
-    for (const y of years) {
+    for (const year of yearOptions) {
+      const y = Number(year);
       for (let m = 1; m <= 12; m++) {
         const value = `${y}-${String(m).padStart(2, '0')}`;
         options.push({
@@ -154,9 +182,9 @@ export function FluxoContabil() {
       }
     }
     return options;
-  }, []);
+  }, [yearOptions]);
 
-  const yearOptions = ['2024', '2025', '2026', '2027'];
+  const mobileMonthIndex = Math.max(0, monthOptions.findIndex((option) => option.value === mobileMonth));
 
   // Métricas do Topo
   const kpis = useMemo(() => {
@@ -327,8 +355,8 @@ export function FluxoContabil() {
       `}</style>
 
       {/* Header */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 no-print">
-        <div>
+      <div className="space-y-5 no-print">
+        <div className="max-w-2xl">
           <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-3">
             <ScrollText className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
             Visão Contábil (DFC)
@@ -339,29 +367,29 @@ export function FluxoContabil() {
         </div>
 
         {/* Painel de Filtros e Seletores */}
-        <div className="flex flex-wrap items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-sm filter-section">
+        <div className="grid w-full grid-cols-1 gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm filter-section dark:border-slate-800/80 dark:bg-slate-900 md:flex md:flex-wrap md:items-end">
           
           {/* Seletor Realizado vs Previsto */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex min-w-0 flex-col gap-1.5 md:w-[360px]">
             <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tipo de Fluxo</Label>
-            <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-950 border border-slate-200/55 dark:border-slate-800/60">
+            <div className="grid w-full grid-cols-3 rounded-xl border border-slate-200/55 bg-slate-100 p-1 dark:border-slate-800/60 dark:bg-slate-950">
               <button
                 onClick={() => setStatusFilter('Pago')}
-                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === 'Pago' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-300' : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'}`}
+                className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === 'Pago' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-300' : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'}`}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Realizado
               </button>
               <button
                 onClick={() => setStatusFilter('Pendente')}
-                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === 'Pendente' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-300' : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'}`}
+                className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === 'Pendente' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-300' : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'}`}
               >
                 <AlertCircle className="h-3.5 w-3.5" />
                 Previsto
               </button>
               <button
                 onClick={() => setStatusFilter('Ambos')}
-                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === 'Ambos' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-300' : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'}`}
+                className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === 'Ambos' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-300' : 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white'}`}
               >
                 <Eye className="h-3.5 w-3.5" />
                 Ambos
@@ -370,10 +398,8 @@ export function FluxoContabil() {
           </div>
 
           {/* Divisor vertical em telas maiores */}
-          <div className="hidden sm:block h-10 w-px bg-slate-100 dark:bg-slate-800" />
-
           {/* Filtro de Conta Bancária */}
-          <div className="flex flex-col gap-1.5 min-w-[140px]">
+          <div className="flex min-w-0 flex-col gap-1.5 md:min-w-[180px] md:flex-1">
             <Label htmlFor="conta-filtro" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Conta</Label>
             <Select value={contaSelecionada} onValueChange={setContaSelecionada}>
               <SelectTrigger id="conta-filtro" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
@@ -389,10 +415,8 @@ export function FluxoContabil() {
           </div>
 
           {/* Divisor vertical */}
-          <div className="hidden sm:block h-10 w-px bg-slate-100 dark:bg-slate-800" />
-
           {/* Seletor de Modo de Filtro (Anual vs Custom) */}
-          <div className="flex flex-col gap-1.5 min-w-[120px]">
+          <div className="hidden min-w-[180px] flex-col gap-1.5 md:flex">
             <Label htmlFor="filtro-modo" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Modo Período</Label>
             <Select value={filtroModo} onValueChange={(val: any) => setFiltroModo(val)}>
               <SelectTrigger id="filtro-modo" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
@@ -407,7 +431,7 @@ export function FluxoContabil() {
 
           {/* Seletores específicos com base no modo */}
           {filtroModo === 'Anual' ? (
-            <div className="flex flex-col gap-1.5 min-w-[100px]">
+            <div className="hidden min-w-[120px] flex-col gap-1.5 md:flex">
               <Label htmlFor="ano-selecionado" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Ano</Label>
               <Select value={anoSelecionado} onValueChange={setAnoSelecionado}>
                 <SelectTrigger id="ano-selecionado" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
@@ -422,9 +446,12 @@ export function FluxoContabil() {
             </div>
           ) : (
             <>
-              <div className="flex flex-col gap-1.5 min-w-[110px]">
+              <div className="hidden min-w-[140px] flex-col gap-1.5 md:flex">
                 <Label htmlFor="start-month" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Início</Label>
-                <Select value={startMonthCustom} onValueChange={setStartMonthCustom}>
+                <Select value={startMonthCustom} onValueChange={(value) => {
+                  setStartMonthCustom(value);
+                  if (endMonthCustom < value) setEndMonthCustom(value);
+                }}>
                   <SelectTrigger id="start-month" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
                     <SelectValue placeholder="Início" />
                   </SelectTrigger>
@@ -436,7 +463,7 @@ export function FluxoContabil() {
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-1.5 min-w-[110px]">
+              <div className="hidden min-w-[140px] flex-col gap-1.5 md:flex">
                 <Label htmlFor="end-month" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Fim</Label>
                 <Select value={endMonthCustom} onValueChange={(val) => setEndMonthCustom(val)}>
                   <SelectTrigger id="end-month" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
@@ -452,8 +479,29 @@ export function FluxoContabil() {
             </>
           )}
 
+          <div className="flex min-w-0 flex-col gap-1.5 md:hidden">
+            <Label htmlFor="mobile-month" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Mês</Label>
+            <Select value={mobileMonth} onValueChange={setMobileMonth}>
+              <SelectTrigger id="mobile-month" className="h-11 rounded-xl border-slate-200 bg-transparent text-sm font-bold dark:border-slate-800">
+                <SelectValue placeholder="Selecione o mês" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60 rounded-xl">
+                {monthOptions.map((option) => (
+                  <SelectItem key={`mobile-${option.value}`} value={option.value}>{formatMonthLabel(option.value)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
         </div>
       </div>
+
+      {isFetching && !isLoading && (
+        <div className="no-print flex items-center gap-2 text-xs font-medium text-slate-500" role="status" aria-live="polite">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+          Atualizando resultados…
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -467,42 +515,42 @@ export function FluxoContabil() {
       ) : (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 kpi-section no-print">
+          <div className="hidden grid-cols-3 gap-4 kpi-section no-print md:grid">
             <Card className="rounded-2xl border-slate-100 dark:border-slate-800/80 shadow-sm overflow-hidden bg-white dark:bg-slate-900/30">
-              <CardContent className="p-6 flex items-center justify-between">
+              <CardContent className="flex items-center justify-between gap-2 p-4 md:p-6">
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold text-slate-400">Patrimônio Consolidado</span>
-                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+                  <span className="text-xs font-semibold text-slate-400">Saldo acumulado</span>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 md:text-2xl">
                     {formatCurrency(kpis.patrimonio)}
                   </h3>
-                  <p className="text-xs text-muted-foreground">Saldo final acumulado em {formatMonthLabel(dfc.meses[dfc.meses.length - 1])}</p>
+                  <p className="hidden text-xs text-muted-foreground sm:block">Posição final em {formatMonthLabel(dfc.meses[dfc.meses.length - 1])}</p>
                 </div>
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                  <Wallet className="h-6 w-6" />
+                <div className="hidden rounded-xl bg-emerald-50 p-3 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400 sm:block">
+                  <Wallet className="h-5 w-5 md:h-6 md:w-6" />
                 </div>
               </CardContent>
             </Card>
 
             <Card className="rounded-2xl border-slate-100 dark:border-slate-800/80 shadow-sm overflow-hidden bg-white dark:bg-slate-900/30">
-              <CardContent className="p-6 flex items-center justify-between">
+              <CardContent className="flex items-center justify-between gap-2 p-4 md:p-6">
                 <div className="space-y-1">
                   <span className="text-xs font-semibold text-slate-400">Resultado Líquido do Período</span>
-                  <h3 className={`text-2xl font-bold ${kpis.resultadoPeriodo >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                  <h3 className={`text-lg font-bold md:text-2xl ${kpis.resultadoPeriodo >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                     {formatCurrency(kpis.resultadoPeriodo)}
                   </h3>
-                  <p className="text-xs text-muted-foreground">Entradas menos saídas no intervalo selecionado</p>
+                  <p className="hidden text-xs text-muted-foreground sm:block">Entradas menos saídas no período</p>
                 </div>
-                <div className={`p-3 rounded-xl ${kpis.resultadoPeriodo >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400'}`}>
+                <div className={`hidden p-3 rounded-xl sm:block ${kpis.resultadoPeriodo >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400'}`}>
                   {kpis.resultadoPeriodo >= 0 ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
                 </div>
               </CardContent>
             </Card>
 
             <Card className="rounded-2xl border-slate-100 dark:border-slate-800/80 shadow-sm overflow-hidden bg-white dark:bg-slate-900/30">
-              <CardContent className="p-6 flex items-center justify-between">
+              <CardContent className="flex items-center justify-between gap-2 p-4 md:p-6">
                 <div className="space-y-1">
                   <span className="text-xs font-semibold text-slate-400">Melhor Resultado Mensal</span>
-                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 md:text-2xl">
                     {formatCurrency(kpis.melhorMesValor)}
                   </h3>
                   <p className="text-xs text-muted-foreground">Superávit recorde em {formatMonthLabel(kpis.melhorMes)}</p>
@@ -514,13 +562,131 @@ export function FluxoContabil() {
             </Card>
           </div>
 
+          {/* Visão mensal otimizada para celular */}
+          <section className="space-y-4 md:hidden no-print" aria-label="Resumo mensal do fluxo contábil">
+            <Card className="overflow-hidden rounded-2xl border-slate-200 shadow-sm dark:border-slate-800">
+              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-3 py-3 dark:border-slate-800 dark:bg-slate-950/40">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-11 w-11 rounded-xl p-0"
+                  disabled={mobileMonthIndex === 0}
+                  onClick={() => setMobileMonth(monthOptions[mobileMonthIndex - 1].value)}
+                  aria-label="Ver mês anterior"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <div className="text-center">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Resumo do mês</p>
+                  <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">{formatMonthLabel(mobileMonth)}</h2>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-11 w-11 rounded-xl p-0"
+                  disabled={mobileMonthIndex >= monthOptions.length - 1}
+                  onClick={() => setMobileMonth(monthOptions[mobileMonthIndex + 1].value)}
+                  aria-label="Ver próximo mês"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              </div>
+
+              <CardContent className="grid grid-cols-2 gap-3 p-4">
+                <div className="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-950/20">
+                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Entradas</p>
+                  <p className="mt-1 text-base font-bold text-emerald-800 dark:text-emerald-300">{formatCurrency(dfc.total_entradas[mobileMonth] ?? 0)}</p>
+                </div>
+                <div className="rounded-xl bg-rose-50 p-3 dark:bg-rose-950/20">
+                  <p className="text-xs font-semibold text-rose-700 dark:text-rose-400">Saídas</p>
+                  <p className="mt-1 text-base font-bold text-rose-800 dark:text-rose-300">{formatCurrency(dfc.total_saidas[mobileMonth] ?? 0)}</p>
+                </div>
+                <div className="rounded-xl bg-slate-100 p-3 dark:bg-slate-800/70">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Resultado</p>
+                  <p className={`mt-1 text-base font-bold ${(dfc.saldo_mes[mobileMonth] ?? 0) >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                    {(dfc.saldo_mes[mobileMonth] ?? 0) >= 0 ? '▲ ' : '▼ '}{formatCurrency(dfc.saldo_mes[mobileMonth] ?? 0)}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-blue-50 p-3 dark:bg-blue-950/20">
+                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">Saldo acumulado</p>
+                  <p className="mt-1 text-base font-bold text-blue-800 dark:text-blue-300">{formatCurrency(dfc.saldo_acumulado[mobileMonth] ?? 0)}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {([
+              { key: 'entrada', title: 'Entradas (Receitas)', categories: dfc.entradas, total: dfc.total_entradas[mobileMonth] ?? 0, tone: 'emerald' },
+              { key: 'saida', title: 'Saídas (Despesas)', categories: dfc.saidas, total: dfc.total_saidas[mobileMonth] ?? 0, tone: 'rose' },
+            ] as const).map((section) => {
+              const visibleCategories = section.categories.filter((category: any) => (category.valores[mobileMonth] ?? 0) !== 0);
+              const isIncome = section.tone === 'emerald';
+
+              return (
+                <Card key={section.key} className="overflow-hidden rounded-2xl border-slate-200 shadow-sm dark:border-slate-800">
+                  <div className={`flex items-center justify-between border-b px-4 py-3 ${isIncome ? 'border-emerald-100 bg-emerald-50/70 dark:border-emerald-950 dark:bg-emerald-950/20' : 'border-rose-100 bg-rose-50/70 dark:border-rose-950 dark:bg-rose-950/20'}`}>
+                    <h2 className={`text-sm font-bold ${isIncome ? 'text-emerald-800 dark:text-emerald-300' : 'text-rose-800 dark:text-rose-300'}`}>{section.title}</h2>
+                    <span className={`text-sm font-bold ${isIncome ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>{formatCurrency(section.total)}</span>
+                  </div>
+
+                  {visibleCategories.length === 0 ? (
+                    <p className="px-4 py-5 text-center text-sm text-muted-foreground">Nenhum valor neste mês.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {visibleCategories.map((category: any) => {
+                        const categoryKey = `${section.key}:${category.categoria_nome}`;
+                        const isExpanded = !!expandedCategories[categoryKey];
+                        const visibleSubcategories = category.subcategorias.filter((subcategory: any) => (subcategory.valores[mobileMonth] ?? 0) !== 0);
+
+                        return (
+                          <div key={categoryKey}>
+                            <button
+                              type="button"
+                              className="flex min-h-12 w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 dark:hover:bg-slate-800/40"
+                              onClick={() => toggleCategory(categoryKey)}
+                              aria-expanded={isExpanded}
+                              aria-controls={`mobile-${categoryKey.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                            >
+                              {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
+                              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700 dark:text-slate-200">{category.categoria_nome}</span>
+                              <span className="text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(category.valores[mobileMonth] ?? 0)}</span>
+                            </button>
+                            {isExpanded && (
+                              <div id={`mobile-${categoryKey.replace(/[^a-zA-Z0-9]/g, '-')}`} className="bg-slate-50/70 px-4 py-2 dark:bg-slate-950/30">
+                                {visibleSubcategories.length === 0 ? (
+                                  <p className="py-2 pl-7 text-xs text-muted-foreground">Sem detalhamento para este mês.</p>
+                                ) : visibleSubcategories.map((subcategory: any) => (
+                                  <div key={subcategory.subcategoria_nome} className="flex items-center justify-between gap-3 py-2 pl-7 text-xs">
+                                    <span className="text-slate-500 dark:text-slate-400">{subcategory.subcategoria_nome}</span>
+                                    <span className="font-semibold tabular-nums text-slate-600 dark:text-slate-300">{formatCurrency(subcategory.valores[mobileMonth] ?? 0)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
+              Saldo anterior: <strong className="text-slate-700 dark:text-slate-200">{formatCurrency(dfc.saldo_anterior[mobileMonth] ?? 0)}</strong>
+              <span className="mx-2" aria-hidden="true">•</span>
+              {statusFilter === 'Pago' ? 'Realizado' : statusFilter === 'Pendente' ? 'Previsto' : 'Realizado + previsto'}
+            </div>
+          </section>
+
           {/* DFC Grid Container */}
           <div
             id="dfc-table-container"
             className={
               isFullScreen
                 ? "fixed inset-0 z-50 bg-white dark:bg-slate-950 p-6 flex flex-col overflow-hidden w-screen h-screen"
-                : "bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-sm overflow-hidden"
+                : "hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-sm overflow-hidden md:block"
             }
           >
             
@@ -579,22 +745,20 @@ export function FluxoContabil() {
                   </tr>
 
                   {dfc.entradas.map((cat: any) => {
-                    const isExpanded = !!expandedCategories[cat.categoria_nome];
+                    const categoryKey = `entrada:${cat.categoria_nome}`;
+                    const isExpanded = !!expandedCategories[categoryKey];
                     return (
                       <Fragment key={`entrada-${cat.categoria_nome}`}>
-                        <tr
-                          className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 cursor-pointer transition-colors print-category-row"
-                          onClick={() => toggleCategory(cat.categoria_nome)}
-                        >
-                          <td className="py-3 px-8 text-sm font-semibold text-slate-600 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800/80 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] z-10">
-                            <div className="flex items-center gap-2">
+                        <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors print-category-row">
+                          <td className="py-0 px-0 text-sm font-semibold text-slate-600 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800/80 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] z-10">
+                            <button type="button" className="flex min-h-11 w-full items-center gap-2 px-8 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500" onClick={() => toggleCategory(categoryKey)} aria-expanded={isExpanded}>
                               {isExpanded ? (
                                 <ChevronDown className="h-4 w-4 text-slate-400 no-print flex-shrink-0" />
                               ) : (
                                 <ChevronRight className="h-4 w-4 text-slate-400 no-print flex-shrink-0" />
                               )}
                               <span>{cat.categoria_nome}</span>
-                            </div>
+                            </button>
                           </td>
                           {dfc.meses.map((m: string) => (
                             <td key={`${cat.categoria_nome}-${m}`} className="py-3 px-4 text-right text-xs text-slate-600 dark:text-slate-300 font-semibold">
@@ -641,22 +805,20 @@ export function FluxoContabil() {
                   </tr>
 
                   {dfc.saidas.map((cat: any) => {
-                    const isExpanded = !!expandedCategories[cat.categoria_nome];
+                    const categoryKey = `saida:${cat.categoria_nome}`;
+                    const isExpanded = !!expandedCategories[categoryKey];
                     return (
                       <Fragment key={`saida-${cat.categoria_nome}`}>
-                        <tr
-                          className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 cursor-pointer transition-colors print-category-row"
-                          onClick={() => toggleCategory(cat.categoria_nome)}
-                        >
-                          <td className="py-3 px-8 text-sm font-semibold text-slate-600 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800/80 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] z-10">
-                            <div className="flex items-center gap-2">
+                        <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors print-category-row">
+                          <td className="py-0 px-0 text-sm font-semibold text-slate-600 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800/80 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] z-10">
+                            <button type="button" className="flex min-h-11 w-full items-center gap-2 px-8 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500" onClick={() => toggleCategory(categoryKey)} aria-expanded={isExpanded}>
                               {isExpanded ? (
                                 <ChevronDown className="h-4 w-4 text-slate-400 no-print flex-shrink-0" />
                               ) : (
                                 <ChevronRight className="h-4 w-4 text-slate-400 no-print flex-shrink-0" />
                               )}
                               <span>{cat.categoria_nome}</span>
-                            </div>
+                            </button>
                           </td>
                           {dfc.meses.map((m: string) => (
                             <td key={`${cat.categoria_nome}-${m}`} className="py-3 px-4 text-right text-xs text-slate-600 dark:text-slate-300 font-semibold">

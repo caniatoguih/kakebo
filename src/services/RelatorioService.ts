@@ -67,24 +67,48 @@ function isInvoicePayment(descricao: string): boolean {
   return descLower.includes('pagamento fatura') || descLower.includes('liquidação fatura') || descLower.includes('liquidacao fatura');
 }
 
+const formatBRL = (value: number) => new Intl.NumberFormat('pt-BR', {
+  style: 'currency', currency: 'BRL',
+}).format(value);
+
 export class RelatorioService {
   private orcamentoRepo = new OrcamentoRepository();
   private transacaoRepo = new TransacaoRepository();
 
-  async gerarPainelReflexao(usuario_id: string, mes: number, ano: number) {
-    // 1. Buscar orçamentos do mês
-    const orcamentos = await this.orcamentoRepo.findByMesAno(usuario_id, mes, ano);
-    
-    // 2. Buscar transações realizadas no mês
-    const { transacoes } = await this.transacaoRepo.findByFilters({
-      usuario_id,
+  private async getReflectionMonth(usuarioId: string, mes: number, ano: number) {
+    const [orcamentos, transactionResult] = await Promise.all([
+      this.orcamentoRepo.findByMesAno(usuarioId, mes, ano),
+      this.transacaoRepo.findByFilters({ usuario_id: usuarioId, mes, ano, page: 1, limit: 10000 }),
+    ]);
+    const transacoes = transactionResult.transacoes;
+    const expenses = transacoes.filter((transaction) => transaction.tipo === 'Despesa');
+    const revenues = transacoes.filter((transaction) => transaction.tipo === 'Receita');
+    const sum = (items: typeof transacoes) => items.reduce((total, item) => total + Number(item.valor), 0);
+
+    return {
       mes,
       ano,
-      page: 1,
-      limit: 10000 // Para relatório pegamos todas do mês
-    });
+      competencia: `${ano}-${String(mes).padStart(2, '0')}`,
+      orcamentos,
+      transacoes,
+      totalOrcado: orcamentos.reduce((total, budget) => total + Number(budget.valor_orcado), 0),
+      receitasRealizadas: sum(revenues.filter((item) => item.status === 'Pago')),
+      receitasPrevistas: sum(revenues.filter((item) => item.status === 'Pendente')),
+      despesasRealizadas: sum(expenses.filter((item) => item.status === 'Pago')),
+      despesasPrevistas: sum(expenses.filter((item) => item.status === 'Pendente')),
+      despesasSemCategoria: sum(expenses.filter((item) => item.status === 'Pago' && !item.subcategoria)),
+    };
+  }
 
-    // 3. Estruturar os 4 pilares
+  async gerarPainelReflexao(usuario_id: string, mes: number, ano: number) {
+    const monthDates = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(Date.UTC(ano, mes - 1 - (5 - index), 1));
+      return { mes: date.getUTCMonth() + 1, ano: date.getUTCFullYear() };
+    });
+    const snapshots = await Promise.all(monthDates.map((date) => this.getReflectionMonth(usuario_id, date.mes, date.ano)));
+    const current = snapshots[snapshots.length - 1];
+    const previous = snapshots[snapshots.length - 2];
+
     const pilares = {
       [PilarKakebo.SOBREVIVENCIA]: { orcado: 0, realizado: 0, saldo: 0, categorias: {} as any },
       [PilarKakebo.LAZER]: { orcado: 0, realizado: 0, saldo: 0, categorias: {} as any },
@@ -92,59 +116,159 @@ export class RelatorioService {
       [PilarKakebo.EXTRAS]: { orcado: 0, realizado: 0, saldo: 0, categorias: {} as any },
     };
 
-    // Preencher valores orçados
-    orcamentos.forEach(orc => {
-      const pilar = orc.subcategoria.categoria.pilar as PilarKakebo;
-      const catNome = orc.subcategoria.categoria.nome;
-      const subCatNome = orc.subcategoria.nome;
-      const valor = Number(orc.valor_orcado);
-
-      pilares[pilar].orcado += valor;
-      
-      if (!pilares[pilar].categorias[catNome]) {
-        pilares[pilar].categorias[catNome] = { orcado: 0, realizado: 0, subcategorias: {} };
+    current.orcamentos.forEach((budget) => {
+      const pilar = budget.subcategoria.categoria.pilar as PilarKakebo;
+      const categoryName = budget.subcategoria.categoria.nome;
+      const subcategoryName = budget.subcategoria.nome;
+      const value = Number(budget.valor_orcado);
+      pilares[pilar].orcado += value;
+      if (!pilares[pilar].categorias[categoryName]) {
+        pilares[pilar].categorias[categoryName] = { orcado: 0, realizado: 0, subcategorias: {} };
       }
-      
-      pilares[pilar].categorias[catNome].orcado += valor;
-      pilares[pilar].categorias[catNome].subcategorias[subCatNome] = { orcado: valor, realizado: 0 };
+      pilares[pilar].categorias[categoryName].orcado += value;
+      pilares[pilar].categorias[categoryName].subcategorias[subcategoryName] = { orcado: value, realizado: 0 };
     });
 
-    // Preencher valores realizados (apenas despesas)
-    transacoes.filter(t => t.tipo === 'Despesa' && t.subcategoria).forEach(t => {
-      const pilar = t.subcategoria!.categoria.pilar as PilarKakebo;
-      const catNome = t.subcategoria!.categoria.nome;
-      const subCatNome = t.subcategoria!.nome;
-      const valor = Number(t.valor);
-
-      pilares[pilar].realizado += valor;
-
-      if (pilares[pilar].categorias[catNome]) {
-        pilares[pilar].categorias[catNome].realizado += valor;
-        if (pilares[pilar].categorias[catNome].subcategorias[subCatNome]) {
-          pilares[pilar].categorias[catNome].subcategorias[subCatNome].realizado += valor;
+    current.transacoes
+      .filter((transaction) => transaction.tipo === 'Despesa' && transaction.status === 'Pago' && transaction.subcategoria)
+      .forEach((transaction) => {
+        const pilar = transaction.subcategoria!.categoria.pilar as PilarKakebo;
+        const categoryName = transaction.subcategoria!.categoria.nome;
+        const subcategoryName = transaction.subcategoria!.nome;
+        const value = Number(transaction.valor);
+        pilares[pilar].realizado += value;
+        if (!pilares[pilar].categorias[categoryName]) {
+          pilares[pilar].categorias[categoryName] = { orcado: 0, realizado: 0, subcategorias: {} };
         }
-      }
-    });
+        pilares[pilar].categorias[categoryName].realizado += value;
+        if (!pilares[pilar].categorias[categoryName].subcategorias[subcategoryName]) {
+          pilares[pilar].categorias[categoryName].subcategorias[subcategoryName] = { orcado: 0, realizado: 0 };
+        }
+        pilares[pilar].categorias[categoryName].subcategorias[subcategoryName].realizado += value;
+      });
 
-    // Calcular saldos
-    let totalOrcado = 0;
-    let totalRealizado = 0;
+    Object.values(pilares).forEach((pilar) => { pilar.saldo = pilar.orcado - pilar.realizado; });
 
-    Object.values(pilares).forEach(pilar => {
-      pilar.saldo = pilar.orcado - pilar.realizado;
-      totalOrcado += pilar.orcado;
-      totalRealizado += pilar.realizado;
-    });
+    const resultadoReal = current.receitasRealizadas - current.despesasRealizadas;
+    const resultadoPrevisto = current.receitasRealizadas + current.receitasPrevistas
+      - current.despesasRealizadas - current.despesasPrevistas;
+    const percentageChange = (value: number, oldValue: number) => oldValue === 0 ? null : ((value - oldValue) / oldValue) * 100;
+    const today = new Date();
+    const isCurrentMonth = today.getUTCFullYear() === ano && today.getUTCMonth() + 1 === mes;
+    const daysInMonth = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+    const elapsedDays = isCurrentMonth ? Math.max(1, today.getUTCDate()) : daysInMonth;
+    const isSurvivalExpense = (transaction: typeof current.transacoes[number]) =>
+      transaction.tipo === 'Despesa' && transaction.subcategoria?.categoria.pilar === PilarKakebo.SOBREVIVENCIA;
+    const essentialRealized = current.transacoes
+      .filter((transaction) => isSurvivalExpense(transaction) && transaction.status === 'Pago')
+      .reduce((total, transaction) => total + Number(transaction.valor), 0);
+    const essentialPending = current.transacoes
+      .filter((transaction) => isSurvivalExpense(transaction) && transaction.status === 'Pendente')
+      .reduce((total, transaction) => total + Number(transaction.valor), 0);
+    const variableRealized = Math.max(0, current.despesasRealizadas - essentialRealized);
+    const variablePending = Math.max(0, current.despesasPrevistas - essentialPending);
+    const variableBudget = Math.max(0, current.totalOrcado - pilares[PilarKakebo.SOBREVIVENCIA].orcado);
+    const variablePace = isCurrentMonth ? (variableRealized / elapsedDays) * daysInMonth : variableRealized;
+    const cappedVariablePace = variableBudget > 0 ? Math.min(variablePace, variableBudget * 1.25) : variablePace;
+    const projectedExpenses = isCurrentMonth
+      ? essentialRealized + essentialPending + Math.max(variableRealized + variablePending, cappedVariablePace)
+      : current.despesasRealizadas + current.despesasPrevistas;
+    const projectedResult = current.receitasRealizadas + current.receitasPrevistas - projectedExpenses;
+
+    const deviations = Object.entries(pilares).flatMap(([pillar, pillarData]) =>
+      Object.entries(pillarData.categorias).map(([category, categoryData]: [string, any]) => ({
+        categoria: category,
+        pilar: pillar,
+        orcado: categoryData.orcado,
+        realizado: categoryData.realizado,
+        diferenca: categoryData.realizado - categoryData.orcado,
+        percentual: categoryData.orcado > 0 ? ((categoryData.realizado - categoryData.orcado) / categoryData.orcado) * 100 : null,
+      })),
+    ).sort((a, b) => Math.abs(b.diferenca) - Math.abs(a.diferenca));
+
+    const [accounts, openInvoices] = await Promise.all([
+      prisma.contaBancaria.findMany({ where: { usuario_id }, include: { cartao_detalhe: true } }),
+      prisma.faturaCartao.findMany({ where: { usuario_id, status: { not: 'Paga' } } }),
+    ]);
+    const reserveBalance = accounts
+      .filter((account) => account.tipo === 'Poupanca')
+      .reduce((total, account) => total + Math.max(0, Number(account.saldo_atual)), 0);
+    const totalCardLimit = accounts.reduce((total, account) => total + Number(account.cartao_detalhe?.limite_total ?? 0), 0);
+    const openInvoiceValue = openInvoices.reduce((total, invoice) => total + Math.max(0, Number(invoice.total) - Number(invoice.total_pago)), 0);
+    const essentialHistory = snapshots.map((snapshot) => {
+      const survival = snapshot.transacoes
+        .filter((transaction) => transaction.tipo === 'Despesa' && transaction.status === 'Pago' && transaction.subcategoria?.categoria.pilar === PilarKakebo.SOBREVIVENCIA)
+        .reduce((sum, transaction) => sum + Number(transaction.valor), 0);
+      return survival;
+    }).filter((value) => value > 0);
+    const essentialAverage = essentialHistory.length > 0
+      ? essentialHistory.reduce((total, value) => total + value, 0) / essentialHistory.length
+      : 0;
+    const recurringCommitments = current.transacoes
+      .filter((transaction) => transaction.tipo === 'Despesa' && transaction.recorrente)
+      .reduce((total, transaction) => total + Number(transaction.valor), 0);
+    const essentialCurrent = essentialRealized;
+
+    const insights: Array<{ tipo: 'positivo' | 'atencao' | 'informativo'; titulo: string; descricao: string; destino?: string }> = [];
+    if (current.despesasSemCategoria > 0) insights.push({ tipo: 'atencao', titulo: 'Há despesas sem categoria', descricao: `${formatBRL(current.despesasSemCategoria)} em gastos não entram na análise dos pilares.`, destino: '/transacoes' });
+    if (current.totalOrcado > 0 && projectedExpenses > current.totalOrcado) insights.push({ tipo: 'atencao', titulo: 'Orçamento pode ser ultrapassado', descricao: `A projeção indica excesso de ${formatBRL(projectedExpenses - current.totalOrcado)} até o fechamento.`, destino: `/planejamento?mes=${current.competencia}` });
+    if (previous && current.despesasRealizadas < previous.despesasRealizadas) insights.push({ tipo: 'positivo', titulo: 'Despesas em queda', descricao: `Você gastou ${Math.abs(percentageChange(current.despesasRealizadas, previous.despesasRealizadas) ?? 0).toFixed(0)}% menos que no mês anterior.` });
+    if (resultadoReal > 0 && current.receitasRealizadas > 0) insights.push({ tipo: 'positivo', titulo: 'Mês com resultado positivo', descricao: `A taxa de poupança realizada está em ${((resultadoReal / current.receitasRealizadas) * 100).toFixed(1)}%.` });
+    const largestDeviation = deviations.find((deviation) => deviation.diferenca > 0);
+    if (largestDeviation) insights.push({ tipo: 'informativo', titulo: `${largestDeviation.categoria} merece atenção`, descricao: `O realizado está ${formatBRL(largestDeviation.diferenca)} acima do valor planejado.`, destino: `/transacoes?periodo=Mes&mes=${current.competencia}` });
 
     return {
       mes,
       ano,
       resumo: {
-        total_orcado: totalOrcado,
-        total_realizado: totalRealizado,
-        saldo_geral: totalOrcado - totalRealizado
+        total_orcado: current.totalOrcado,
+        total_realizado: current.despesasRealizadas,
+        saldo_geral: current.totalOrcado - current.despesasRealizadas,
+        receitas_realizadas: current.receitasRealizadas,
+        despesas_realizadas: current.despesasRealizadas,
+        receitas_previstas: current.receitasPrevistas,
+        despesas_previstas: current.despesasPrevistas,
+        resultado_real: resultadoReal,
+        resultado_previsto: resultadoPrevisto,
+        taxa_poupanca: current.receitasRealizadas > 0 ? (resultadoReal / current.receitasRealizadas) * 100 : null,
+        aderencia_orcamento: current.totalOrcado > 0 ? (current.despesasRealizadas / current.totalOrcado) * 100 : null,
+        folga_orcamento: current.totalOrcado - current.despesasRealizadas,
+        despesas_sem_categoria: current.despesasSemCategoria,
       },
-      pilares
+      comparacao_mes_anterior: {
+        receitas_percentual: percentageChange(current.receitasRealizadas, previous.receitasRealizadas),
+        despesas_percentual: percentageChange(current.despesasRealizadas, previous.despesasRealizadas),
+        resultado_percentual: percentageChange(resultadoReal, previous.receitasRealizadas - previous.despesasRealizadas),
+      },
+      historico: snapshots.map((snapshot) => ({
+        competencia: snapshot.competencia,
+        receitas: snapshot.receitasRealizadas,
+        despesas: snapshot.despesasRealizadas,
+        resultado: snapshot.receitasRealizadas - snapshot.despesasRealizadas,
+        orcado: snapshot.totalOrcado,
+      })),
+      projecao: {
+        despesas_projetadas: projectedExpenses,
+        resultado_projetado: projectedResult,
+        compromissos_pendentes: current.despesasPrevistas,
+        percentual_orcamento_projetado: current.totalOrcado > 0 ? (projectedExpenses / current.totalOrcado) * 100 : null,
+        dias_decorridos: elapsedDays,
+        dias_no_mes: daysInMonth,
+      },
+      saude: {
+        despesas_essenciais: essentialCurrent,
+        percentual_renda_essenciais: current.receitasRealizadas > 0 ? (essentialCurrent / current.receitasRealizadas) * 100 : null,
+        compromissos_recorrentes: recurringCommitments,
+        percentual_renda_recorrencias: current.receitasRealizadas > 0 ? (recurringCommitments / current.receitasRealizadas) * 100 : null,
+        faturas_abertas: openInvoiceValue,
+        limite_cartoes: totalCardLimit,
+        utilizacao_cartoes: totalCardLimit > 0 ? (openInvoiceValue / totalCardLimit) * 100 : null,
+        reserva: reserveBalance,
+        meses_cobertura: essentialAverage > 0 ? reserveBalance / essentialAverage : null,
+      },
+      desvios: deviations.slice(0, 8),
+      insights: insights.slice(0, 3),
+      pilares,
     };
   }
 

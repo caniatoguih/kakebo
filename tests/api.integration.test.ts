@@ -68,6 +68,22 @@ describeDatabase('API com PostgreSQL isolado', () => {
     expect(audit.body.eventos[0]).toMatchObject({ acao: 'CRIAR', entidade: 'Transacao' });
     expect(audit.body.eventos[0].request_id).toBeTruthy();
 
+    const reflection = await agent.get('/api/relatorios/kakebo-reflexao?mes=8&ano=2026').expect(200);
+    expect(reflection.body.resumo).toMatchObject({
+      receitas_realizadas: 0,
+      despesas_realizadas: 25.5,
+      resultado_real: -25.5,
+      despesas_sem_categoria: 25.5,
+    });
+    expect(reflection.body.historico).toHaveLength(6);
+    expect(reflection.body).toEqual(expect.objectContaining({
+      comparacao_mes_anterior: expect.any(Object),
+      projecao: expect.any(Object),
+      saude: expect.any(Object),
+      desvios: expect.any(Array),
+      insights: expect.any(Array),
+    }));
+
     const card = await agent.post('/api/contas').set('X-CSRF-Token', csrf).send({
       nome: 'Cartão recorrência', tipo: 'CartaoCredito', saldo_inicial: 0,
       limite_total: 5000, dia_fechamento: 10, dia_vencimento: 17,
