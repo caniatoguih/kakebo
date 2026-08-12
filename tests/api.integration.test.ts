@@ -183,6 +183,22 @@ describeDatabase('API com PostgreSQL isolado', () => {
     });
     expect(cardAuditEvent.dados.valores_anteriores).toHaveLength(13);
 
+    await agent.post('/api/transacoes/prorrogar').set('X-CSRF-Token', csrf).send({
+      transacao_pai_id: recurringCardTransaction.body.transacao_pai_id, novos_meses: 2,
+    }).expect(200);
+    const extendedCardOccurrences = await prisma.transacao.findMany({
+      where: { transacao_pai_id: recurringCardTransaction.body.transacao_pai_id },
+      orderBy: { parcela_atual: 'asc' },
+    });
+    expect(extendedCardOccurrences).toHaveLength(18);
+    expect(extendedCardOccurrences.slice(-2).every((item) => item.fatura_id && item.total_parcelas === 18)).toBe(true);
+    await agent.post('/api/transacoes/cancelar-recorrencia').set('X-CSRF-Token', csrf).send({
+      transacao_pai_id: recurringCardTransaction.body.transacao_pai_id, parcela_limite: 16,
+    }).expect(200);
+    expect(await prisma.transacao.count({
+      where: { transacao_pai_id: recurringCardTransaction.body.transacao_pai_id },
+    })).toBe(16);
+
     // Reproduz parcelas de cartao criadas antes da tabela de faturas: elas nao
     // possuem fatura_id, mas devem continuar visiveis ao lado das faturas novas.
     const legacyParentId = 'legacy-installments-integration';
@@ -305,6 +321,26 @@ describeDatabase('API com PostgreSQL isolado', () => {
     });
     expect(changedTransferSides).toHaveLength(2);
     expect(changedTransferSides.every((transaction) => Number(transaction.valor) === 75)).toBe(true);
+
+    await agent.post('/api/transacoes/prorrogar').set('X-CSRF-Token', csrf).send({
+      transacao_pai_id: recurringTransfer.body.transacao_pai_id, novos_meses: 2,
+    }).expect(200);
+    const extendedTransfer = await prisma.transacao.findMany({
+      where: { transacao_pai_id: recurringTransfer.body.transacao_pai_id },
+      orderBy: [{ parcela_atual: 'asc' }, { transferencia_direcao: 'asc' }],
+    });
+    expect(extendedTransfer).toHaveLength(10);
+    expect(new Set(extendedTransfer.map((item) => item.parcela_atual))).toEqual(new Set([1, 2, 3, 4, 5]));
+    expect(extendedTransfer.filter((item) => item.parcela_atual > 3).map((item) => item.transferencia_direcao).sort())
+      .toEqual(['Entrada', 'Entrada', 'Saida', 'Saida']);
+    await agent.post('/api/transacoes/cancelar-recorrencia').set('X-CSRF-Token', csrf).send({
+      transacao_pai_id: recurringTransfer.body.transacao_pai_id, parcela_limite: 3,
+    }).expect(200);
+    const endedTransfer = await prisma.transacao.findMany({
+      where: { transacao_pai_id: recurringTransfer.body.transacao_pai_id },
+    });
+    expect(endedTransfer).toHaveLength(6);
+    expect(endedTransfer.every((item) => item.total_parcelas === 3)).toBe(true);
 
     const paidSeriesId = '99999999-9999-4999-8999-999999999999';
     await prisma.transacao.createMany({ data: [

@@ -1,9 +1,11 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
-  ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, CalendarClock, ChevronDown,
-  ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Clock3, FilterX, RefreshCw, Search,
+  ArrowDownCircle, ArrowRightLeft, ArrowUpCircle, CalendarClock, CalendarPlus,
+  ChevronLeft, ChevronRight, CircleAlert, Clock3, EllipsisVertical, FilterX,
+  History, OctagonX, Pencil, RefreshCw, Search,
 } from 'lucide-react';
 import { contasService } from '@/services/contasService';
 import {
@@ -19,8 +21,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { AjustarValorRecorrenciaModal } from '@/components/Recorrencias/AjustarValorRecorrenciaModal';
+import { GerenciarRecorrenciaActions } from '@/components/Recorrencias/GerenciarRecorrenciaActions';
 
 const PAGE_SIZE = 20;
 const brl = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -77,7 +81,9 @@ function DetailPanel({ id }: { id: string }) {
     : data.ocorrencias;
   const auditLabel = (action: string) => action === 'ALTERAR_VALOR_RECORRENCIA'
     ? 'Valor alterado'
-    : action === 'CRIAR_TRANSFERENCIA_RECORRENTE' ? 'Transferência recorrente criada' : 'Recorrência criada';
+    : action === 'PRORROGAR_RECORRENCIA' ? 'Recorrência prorrogada'
+      : action === 'ENCERRAR_RECORRENCIA' ? 'Recorrência encerrada'
+        : action === 'CRIAR_TRANSFERENCIA_RECORRENTE' ? 'Transferência recorrente criada' : 'Recorrência criada';
   return <section aria-label={`Competências de ${data.descricao}`} className="space-y-5 rounded-xl border bg-muted/20 p-4">
     <div>
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -108,9 +114,75 @@ function DetailPanel({ id }: { id: string }) {
   </section>;
 }
 
+const menuItemClass = 'flex min-h-11 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50';
+
+function HistoryModal({ recurrence, trigger }: { recurrence: RecurrenceSummary; trigger: ReactNode }) {
+  return <Dialog>
+    <DialogTrigger asChild>{trigger}</DialogTrigger>
+    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+      <DialogHeader><DialogTitle>Histórico — {recurrence.descricao}</DialogTitle><DialogDescription>Consulte as competências, projeções e alterações registradas nesta recorrência.</DialogDescription></DialogHeader>
+      <DetailPanel id={recurrence.id} />
+    </DialogContent>
+  </Dialog>;
+}
+
+function RecurrenceOptionsMenu({ recurrence }: { recurrence: RecurrenceSummary }) {
+  const disabled = recurrence.situacao === 'Inconsistente';
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeMenu = () => setOpen(false);
+  const updatePosition = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const menuHeight = 196;
+    const top = window.innerHeight - rect.bottom >= menuHeight
+      ? rect.bottom + 4
+      : Math.max(8, rect.top - menuHeight - 4);
+    setPosition({ top, left: Math.min(window.innerWidth - 216, Math.max(8, rect.right - 208)) });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const closeOnOutside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) closeMenu();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') closeMenu(); };
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  const menu = typeof document === 'undefined' ? null : createPortal(<div ref={menuRef} role="menu" aria-label={`Opções de ${recurrence.descricao}`} style={position} className={cn('fixed z-[100] w-52 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg', !open && 'hidden')}>
+      <AjustarValorRecorrenciaModal recurrence={recurrence} trigger={<button type="button" role="menuitem" disabled={disabled} className={menuItemClass} onClick={closeMenu}><Pencil className="h-4 w-4" />Ajustar valor</button>} />
+      <GerenciarRecorrenciaActions recurrence={recurrence}
+        extendTrigger={<button type="button" role="menuitem" disabled={disabled} className={menuItemClass} onClick={closeMenu}><CalendarPlus className="h-4 w-4" />Prorrogar</button>}
+        endTrigger={<button type="button" role="menuitem" disabled={disabled} className={`${menuItemClass} text-rose-700`} onClick={closeMenu}><OctagonX className="h-4 w-4" />Encerrar</button>}
+      />
+      <HistoryModal recurrence={recurrence} trigger={<button type="button" role="menuitem" className={menuItemClass} onClick={closeMenu}><History className="h-4 w-4" />Histórico</button>} />
+      {disabled && <p className="px-3 py-2 text-xs text-muted-foreground">Corrija a série inconsistente para alterá-la.</p>}
+    </div>, document.body);
+
+  return <>
+    <Button ref={triggerRef} type="button" variant="ghost" size="icon" aria-label={`Opções de ${recurrence.descricao}`} aria-haspopup="menu" aria-expanded={open} title="Opções" onClick={() => { updatePosition(); setOpen((current) => !current); }}>
+      <EllipsisVertical className="h-5 w-5" aria-hidden="true" />
+    </Button>
+    {menu}
+  </>;
+}
+
 export function Recorrencias() {
   const [params, setParams] = useSearchParams();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const search = params.get('busca') ?? '';
   const deferredSearch = useDeferredValue(search);
   const type = params.get('tipo') ?? 'Todos';
@@ -122,10 +194,9 @@ export function Recorrencias() {
     const next = new URLSearchParams(params);
     if (!value || value === 'Todos') next.delete(key); else next.set(key, value);
     if (key !== 'pagina') next.delete('pagina');
-    setExpandedId(null);
     setParams(next, { replace: true });
   };
-  const clearFilters = () => { setExpandedId(null); setParams(new URLSearchParams(), { replace: true }); };
+  const clearFilters = () => setParams(new URLSearchParams(), { replace: true });
   const filters = useMemo<RecurrenceFilters>(() => ({
     page, limit: PAGE_SIZE,
     ...(deferredSearch && { busca: deferredSearch }),
@@ -141,7 +212,6 @@ export function Recorrencias() {
   const hasFilters = Boolean(search || type !== 'Todos' || account !== 'Todos' || state !== 'Todos');
   const recurrences = data?.recorrencias ?? [];
   const totalPages = Math.max(1, data?.total_pages ?? 1);
-  const toggleDetails = (id: string) => setExpandedId((current) => current === id ? null : id);
 
   return <div className="space-y-6">
     <header>
@@ -162,19 +232,16 @@ export function Recorrencias() {
     {!isLoading && !isError && recurrences.length === 0 && <EmptyState icon={CalendarClock} title={hasFilters ? 'Nenhuma recorrência encontrada' : 'Nenhum lançamento recorrente'} description={hasFilters ? 'Revise ou limpe os filtros para ampliar a busca.' : 'Ao registrar uma receita, despesa ou transferência recorrente, ela aparecerá aqui.'} action={hasFilters ? <Button variant="outline" onClick={clearFilters}>Limpar filtros</Button> : undefined} />}
 
     {!isLoading && !isError && recurrences.length > 0 && <>
-      <div className="hidden overflow-hidden rounded-xl border md:block">
+      <div className="hidden overflow-visible rounded-xl border md:block">
         <Table><TableHeader><TableRow><TableHead>Recorrência</TableHead><TableHead>Tipo</TableHead><TableHead>Conta</TableHead><TableHead>Valor atual</TableHead><TableHead>Próxima</TableHead><TableHead>Situação</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader><TableBody>
-          {recurrences.map((item) => <TableRow key={item.id}><TableCell><p className="font-semibold">{item.descricao}</p><p className="text-xs text-muted-foreground">{item.ocorrencias_geradas} competências · até {formatCompetence(item.ultima_competencia)}</p></TableCell><TableCell><TypeBadge type={item.tipo} /></TableCell><TableCell className="max-w-52 truncate" title={accountLabel(item)}>{accountLabel(item)}</TableCell><TableCell className="font-bold">{brl(item.valor_atual)}</TableCell><TableCell>{formatCompetence(item.proxima_competencia)}</TableCell><TableCell><StateBadge state={item.situacao} /></TableCell><TableCell><div className="flex justify-end gap-1"><AjustarValorRecorrenciaModal recurrence={item} /><Button variant="ghost" size="sm" aria-expanded={expandedId === item.id} onClick={() => toggleDetails(item.id)} className="gap-1">Ver {expandedId === item.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</Button></div></TableCell></TableRow>)}
+          {recurrences.map((item) => <TableRow key={item.id}><TableCell><p className="font-semibold">{item.descricao}</p><p className="text-xs text-muted-foreground">{item.ocorrencias_geradas} competências · até {formatCompetence(item.ultima_competencia)}</p></TableCell><TableCell><TypeBadge type={item.tipo} /></TableCell><TableCell className="max-w-52 truncate" title={accountLabel(item)}>{accountLabel(item)}</TableCell><TableCell className="font-bold">{brl(item.valor_atual)}</TableCell><TableCell>{formatCompetence(item.proxima_competencia)}</TableCell><TableCell><StateBadge state={item.situacao} /></TableCell><TableCell><div className="flex justify-end"><RecurrenceOptionsMenu recurrence={item} /></div></TableCell></TableRow>)}
         </TableBody></Table>
       </div>
-      <div className="hidden md:block">{expandedId && <DetailPanel id={expandedId} />}</div>
 
       <div className="space-y-3 md:hidden">{recurrences.map((item) => <Card key={item.id} className={cn(item.situacao === 'Inconsistente' && 'border-amber-300 dark:border-amber-800')}><CardContent className="space-y-4 p-4">
-        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-base font-bold">{item.descricao}</p><p className="truncate text-sm text-muted-foreground">{accountLabel(item)}</p></div><p className="shrink-0 text-lg font-extrabold">{brl(item.valor_atual)}</p></div>
+        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-base font-bold">{item.descricao}</p><p className="truncate text-sm text-muted-foreground">{accountLabel(item)}</p></div><div className="flex shrink-0 items-center gap-1"><p className="text-lg font-extrabold">{brl(item.valor_atual)}</p><RecurrenceOptionsMenu recurrence={item} /></div></div>
         <div className="flex flex-wrap items-center gap-2"><TypeBadge type={item.tipo} /><StateBadge state={item.situacao} />{item.situacao === 'Inconsistente' && <CircleAlert className="h-4 w-4 text-amber-600" aria-label="Série inconsistente" />}</div>
         <div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs text-muted-foreground">Próxima competência</p><p className="font-semibold">{formatCompetence(item.proxima_competencia)}</p></div><div><p className="text-xs text-muted-foreground">Projeções</p><p className="font-semibold">{item.ocorrencias_geradas} até {formatCompetence(item.ultima_competencia)}</p></div></div>
-        <div className="grid grid-cols-2 gap-2"><AjustarValorRecorrenciaModal recurrence={item} /><Button variant="outline" className="justify-between" aria-expanded={expandedId === item.id} onClick={() => toggleDetails(item.id)}>Ver histórico {expandedId === item.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</Button></div>
-        {expandedId === item.id && <DetailPanel id={item.id} />}
       </CardContent></Card>)}</div>
 
       <nav aria-label="Paginação de recorrências" className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">Página {page} de {totalPages}</p><div className="flex gap-2"><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setFilter('pagina', String(page - 1))}><ChevronLeft className="h-4 w-4" />Anterior</Button><Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setFilter('pagina', String(page + 1))}>Próxima<ChevronRight className="h-4 w-4" /></Button></div></nav>

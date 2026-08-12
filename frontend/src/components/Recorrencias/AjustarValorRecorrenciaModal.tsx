@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowRight, CheckCircle2, Pencil, ShieldAlert } from 'lucide-react';
 import { notify } from '@/components/FeedbackHost';
@@ -24,7 +24,7 @@ function competenceLabel(value: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-export function AjustarValorRecorrenciaModal({ recurrence }: { recurrence: RecurrenceSummary }) {
+export function AjustarValorRecorrenciaModal({ recurrence, trigger }: { recurrence: RecurrenceSummary; trigger?: ReactNode }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [newValue, setNewValue] = useState(recurrence.valor_atual);
@@ -97,7 +97,7 @@ export function AjustarValorRecorrenciaModal({ recurrence }: { recurrence: Recur
   );
 
   return <Dialog open={open} onOpenChange={handleOpenChange}>
-    <DialogTrigger asChild><Button variant="outline" size="sm" disabled={recurrence.situacao === 'Inconsistente'} title={recurrence.situacao === 'Inconsistente' ? 'Corrija a série inconsistente antes de alterar valores.' : 'Ajustar valor da recorrência'} className="gap-1.5"><Pencil className="h-3.5 w-3.5" />Ajustar valor</Button></DialogTrigger>
+    <DialogTrigger asChild>{trigger ?? <Button variant="outline" size="sm" disabled={recurrence.situacao === 'Inconsistente'} title={recurrence.situacao === 'Inconsistente' ? 'Corrija a série inconsistente antes de alterar valores.' : 'Ajustar valor da recorrência'} className="gap-1.5"><Pencil className="h-3.5 w-3.5" />Ajustar valor</Button>}</DialogTrigger>
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
       <DialogHeader><DialogTitle>Ajustar valor — {recurrence.descricao}</DialogTitle><DialogDescription>Escolha quando o novo valor começa. Nenhuma alteração será feita antes da revisão do impacto.</DialogDescription></DialogHeader>
 

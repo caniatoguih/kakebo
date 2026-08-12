@@ -1462,26 +1462,27 @@ export class TransacaoService {
       throw new Error("novos_meses deve ser pelo menos 1.");
     }
 
-    // 1. Busca todas as transações da recorrência
     const transacoes = await prisma.transacao.findMany({
       where: {
         transacao_pai_id,
         usuario_id
       },
-      orderBy: { data_transacao: 'asc' }
+      include: { conta: { include: { cartao_detalhe: true } } },
+      orderBy: [{ parcela_atual: 'asc' }, { data_transacao: 'asc' }]
     });
 
     if (transacoes.length === 0) {
       throw new Error("Recorrência não encontrada.");
     }
 
-    const totalExistente = transacoes.length;
+    const totalExistente = Math.max(...transacoes.map((item) => item.parcela_atual));
     const novosTotal = totalExistente + novos_meses;
+    const ultimaOcorrencia = transacoes.filter((item) => item.parcela_atual === totalExistente);
+    const ultima = ultimaOcorrencia[0];
+    const primeira = transacoes[0];
+    const ultimaData = new Date(ultima.data_transacao);
+    const anchorDay = primeira.data_transacao.getUTCDate();
 
-    // 2. A última transação na série
-    const ultima = transacoes[transacoes.length - 1];
-
-    // 3. Modifica as transações existentes para terem o novo total_parcelas
     return prisma.$transaction(async (tx) => {
       await tx.transacao.updateMany({
         where: {
@@ -1493,31 +1494,43 @@ export class TransacaoService {
         }
       });
 
-      // 4. Cria os novos meses futuros de recorrência
-      const novasTransacoes: Prisma.TransacaoUncheckedCreateInput[] = [];
-      const ultimaData = new Date(ultima.data_transacao);
-      const anchorDay = transacoes[0].data_transacao.getUTCDate();
-
-      for (let i = 1; i <= novos_meses; i++) {
-        novasTransacoes.push({
-          usuario_id,
-          conta_id: ultima.conta_id,
-          subcategoria_id: ultima.subcategoria_id,
-          descricao: ultima.descricao,
-          valor: ultima.valor, // valor cheio da mensalidade
-          tipo: ultima.tipo,
-          data_transacao: addMonthsClamped(ultimaData, i, anchorDay),
-          status: 'Pendente', // Novas parcelas começam pendentes
-          parcela_atual: totalExistente + i,
-          total_parcelas: novosTotal,
-          transacao_pai_id,
-          recorrente: true,
-          id: uuidv4()
-        } as any);
+      if (ultima.tipo === 'Transferencia') {
+        const saida = ultimaOcorrencia.find((item) => item.transferencia_direcao === 'Saida');
+        const entrada = ultimaOcorrencia.find((item) => item.transferencia_direcao === 'Entrada');
+        if (!saida || !entrada) throw new Error('A recorrência de transferência está inconsistente.');
+        const descricaoBase = saida.descricao.replace(/^\[(?:Saída|Entrada)\]\s*/, '');
+        for (let i = 1; i <= novos_meses; i++) {
+          const group = await tx.transferenciaGrupo.create({ data: { usuario_id, descricao: descricaoBase } });
+          const comum = {
+            usuario_id, subcategoria_id: null, valor: saida.valor, tipo: 'Transferencia' as const,
+            data_transacao: addMonthsClamped(ultimaData, i, anchorDay), status: 'Pendente' as const,
+            parcela_atual: totalExistente + i, total_parcelas: novosTotal, transacao_pai_id,
+            recorrente: true, transferencia_grupo_id: group.id,
+          };
+          await tx.transacao.createMany({ data: [
+            { ...comum, id: uuidv4(), conta_id: saida.conta_id, descricao: `[Saída] ${descricaoBase}`, transferencia_direcao: 'Saida' },
+            { ...comum, id: uuidv4(), conta_id: entrada.conta_id, descricao: `[Entrada] ${descricaoBase}`, transferencia_direcao: 'Entrada' },
+          ] });
+        }
+      } else {
+        const novasTransacoes: Prisma.TransacaoUncheckedCreateInput[] = [];
+        for (let i = 1; i <= novos_meses; i++) novasTransacoes.push({
+          id: uuidv4(), usuario_id, conta_id: ultima.conta_id, subcategoria_id: ultima.subcategoria_id,
+          descricao: ultima.descricao, valor: ultima.valor, tipo: ultima.tipo,
+          data_transacao: addMonthsClamped(ultimaData, i, anchorDay), status: 'Pendente',
+          parcela_atual: totalExistente + i, total_parcelas: novosTotal,
+          transacao_pai_id, recorrente: true,
+        });
+        const cardDetails = ultima.conta.cartao_detalhe;
+        if (cardDetails) await this.invoiceService.assignCardTransactions(
+          tx, usuario_id, ultima.conta_id, cardDetails.dia_fechamento, cardDetails.dia_vencimento, novasTransacoes,
+        );
+        await tx.transacao.createMany({ data: novasTransacoes });
       }
 
-      await tx.transacao.createMany({
-        data: novasTransacoes
+      await recordFinancialAudit(tx, {
+        usuarioId: usuario_id, action: 'PRORROGAR_RECORRENCIA', entity: 'Recorrencia', entityId: transacao_pai_id,
+        data: { novos_meses, total_anterior: totalExistente, novo_total: novosTotal },
       });
 
       return {
@@ -1535,12 +1548,12 @@ export class TransacaoService {
       throw new Error("parcela_limite inválida.");
     }
 
-    // 1. Busca todas as transações da recorrência
     const transacoes = await prisma.transacao.findMany({
       where: {
         transacao_pai_id,
         usuario_id
       },
+      include: { conta: true, fatura: true },
       orderBy: { parcela_atual: 'asc' }
     });
 
@@ -1548,10 +1561,20 @@ export class TransacaoService {
       throw new Error("Recorrência não encontrada.");
     }
 
-    // 2. Modifica transações em uma transação de banco (Prisma transaction)
+    const totalExistente = Math.max(...transacoes.map((item) => item.parcela_atual));
+    if (parcela_limite >= totalExistente) throw new Error('Escolha uma competência anterior ao fim atual da recorrência.');
+    const removidas = transacoes.filter((item) => item.parcela_atual > parcela_limite);
+    if (removidas.some((item) => item.status === 'Pago')) {
+      throw new Error('Não é possível remover competências que já foram pagas ou recebidas.');
+    }
+    if (removidas.some((item) => item.fatura && Number(item.fatura.total_pago) > 0)) {
+      throw new Error('Não é possível remover lançamentos de uma fatura que já recebeu pagamento.');
+    }
+    const faturasAfetadas = [...new Set(removidas.flatMap((item) => item.fatura_id ? [item.fatura_id] : []))];
+    const ocorrenciasRemovidas = new Set(removidas.map((item) => item.parcela_atual)).size;
+
     return prisma.$transaction(async (tx) => {
-      // Deleta todas as parcelas futuras após a parcela_limite
-      const deleteResult = await tx.transacao.deleteMany({
+      await tx.transacao.deleteMany({
         where: {
           transacao_pai_id,
           usuario_id,
@@ -1561,7 +1584,6 @@ export class TransacaoService {
         }
       });
 
-      // Atualiza as parcelas restantes para refletirem o novo total_parcelas
       await tx.transacao.updateMany({
         where: {
           transacao_pai_id,
@@ -1575,8 +1597,23 @@ export class TransacaoService {
         }
       });
 
+      for (const invoiceId of faturasAfetadas) {
+        const restantes = await tx.transacao.findMany({ where: { fatura_id: invoiceId } });
+        const totalCents = restantes.reduce((sum, item) => sum + calculateBalanceImpactCents({
+          accountType: 'CartaoCredito', transactionType: item.tipo, status: item.status,
+          description: item.descricao, value: item.valor,
+        }), 0);
+        await tx.faturaCartao.update({ where: { id: invoiceId }, data: { total: fromCents(totalCents) } });
+        await this.invoiceService.refreshStatus(tx, invoiceId);
+      }
+
+      await recordFinancialAudit(tx, {
+        usuarioId: usuario_id, action: 'ENCERRAR_RECORRENCIA', entity: 'Recorrencia', entityId: transacao_pai_id,
+        data: { parcela_limite, total_anterior: totalExistente, ocorrencias_removidas: ocorrenciasRemovidas, faturas_afetadas: faturasAfetadas },
+      });
+
       return {
-        message: `Assinatura encerrada antecipadamente no mês ${parcela_limite}. ${deleteResult.count} cobranças futuras foram removidas com sucesso.`,
+        message: `Recorrência encerrada na competência ${parcela_limite}. ${ocorrenciasRemovidas} competências futuras foram removidas.`,
         novoTotal: parcela_limite
       };
     });

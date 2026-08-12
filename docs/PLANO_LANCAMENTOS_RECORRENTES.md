@@ -221,3 +221,15 @@ Payload inicial da alteração:
 ## Encerramento
 
 As fases 0 a 7 estão concluídas. Após o deploy, acompanhar respostas `409` na confirmação, erros 5xx nos endpoints de recorrência e divergências na auditoria diária de saldos.
+
+## Complemento — prorrogação e encerramento
+
+- A tela reúne “Ajustar valor”, “Prorrogar”, “Encerrar” e “Histórico” em um menu de opções no desktop e no mobile.
+- O histórico é aberto em modal, sem deslocar o conteúdo nem criar um painel no fim da tela.
+- A prorrogação informa o novo fim previsto e cria as competências como pendentes.
+- Transferências prorrogadas preservam as duas pontas e o grupo de cada competência.
+- Lançamentos prorrogados de cartão são vinculados às faturas corretas.
+- O encerramento exige escolher a última competência mantida e informa quantas serão removidas.
+- Competências pagas e faturas com pagamento são protegidas contra remoção.
+- Faturas afetadas são recalculadas atomicamente e as duas operações ficam registradas na auditoria.
+- A integração PostgreSQL no Docker cobre prorrogação e encerramento de cartão e transferência.
