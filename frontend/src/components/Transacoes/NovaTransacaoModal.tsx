@@ -222,6 +222,11 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
                 {typeOptions.map((option) => {
                   const Icon = option.icon;
                   const active = tipo === option.value;
+                  const colorClasses = {
+                    rose: 'border-rose-500 bg-rose-50 ring-1 ring-rose-500 dark:bg-rose-950/20 text-rose-600',
+                    emerald: 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500 dark:bg-emerald-950/20 text-emerald-600',
+                    blue: 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 dark:bg-blue-950/20 text-blue-600',
+                  };
                   return (
                     <button
                       key={option.value}
@@ -239,7 +244,7 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
                       }}
                       className={cn(
                         'relative flex min-h-20 items-center gap-3 rounded-xl border p-3 text-left transition-colors sm:flex-col sm:items-start',
-                        active ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500 dark:bg-emerald-950/20' : 'border-border hover:bg-muted/50',
+                        active ? colorClasses[option.color as keyof typeof colorClasses] : 'border-border hover:bg-muted/50',
                       )}
                     >
                       <Icon className="h-5 w-5" />
@@ -247,7 +252,7 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
                         <span className="block text-sm font-semibold">{option.label}</span>
                         <span className="block text-xs text-muted-foreground">{option.description}</span>
                       </span>
-                      {active && <Check className="absolute right-2 top-2 h-4 w-4 text-emerald-600" />}
+                      {active && <Check className="absolute right-2 top-2 h-4 w-4" />}
                     </button>
                   );
                 })}
