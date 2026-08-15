@@ -295,7 +295,7 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
             </div>
             <div className="space-y-2">
               <Label htmlFor="data">Data</Label>
-              <Input id="data" type="date" {...register('data_transacao')} />
+              <Input id="data" type="date" {...register('data_transacao')} className="h-10 max-sm:h-9" />
             </div>
           </div>
 
