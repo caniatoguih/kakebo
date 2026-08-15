@@ -204,16 +204,17 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
       <DialogTrigger asChild>
         {trigger ?? defaultTrigger}
       </DialogTrigger>
-      <DialogContent className="max-h-[92vh] overflow-y-auto p-0 sm:max-w-[560px]">
-        <div className="px-5 pt-5 sm:px-6 sm:pt-6">
-        <DialogHeader>
-          <DialogTitle>{editItem ? 'Editar Transação' : 'Registrar Transação'}</DialogTitle>
-          <DialogDescription>
-            {editItem ? 'Atualize os dados deste lançamento financeiro.' : 'Preencha os dados do novo lançamento financeiro.'}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px] max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:w-full max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-2xl">
+        <div className="shrink-0 px-5 pt-5 sm:px-6 sm:pt-6">
+          <DialogHeader>
+            <DialogTitle>{editItem ? 'Editar Transação' : 'Registrar Transação'}</DialogTitle>
+            <DialogDescription>
+              {editItem ? 'Atualize os dados deste lançamento financeiro.' : 'Preencha os dados do novo lançamento financeiro.'}
+            </DialogDescription>
+          </DialogHeader>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 px-5 pb-24 sm:px-6 sm:pb-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-1 sm:px-6">
           {!editItem && (
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold">O que você quer registrar?</legend>
@@ -482,8 +483,9 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
               )}
             </div>
           )}
+          </div>
 
-          <DialogFooter className="fixed inset-x-0 bottom-0 z-10 border-t bg-background/95 p-4 backdrop-blur sm:static sm:-mx-6 sm:-mb-6 sm:mt-6 sm:px-6 sm:py-4">
+          <DialogFooter className="shrink-0 border-t bg-background px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? 'Salvando...' : 'Salvar Transação'}

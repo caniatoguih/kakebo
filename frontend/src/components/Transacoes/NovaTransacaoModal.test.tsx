@@ -48,6 +48,15 @@ describe('NovaTransacaoModal', () => {
     mocks.editar.mockResolvedValue({ id: 'transfer-out' });
   });
 
+  it('mantém as ações de salvar ancoradas ao diálogo em telas pequenas', async () => {
+    renderModal();
+    await userEvent.click(screen.getByRole('button', { name: 'Nova Transação' }));
+    const dialog = screen.getByRole('dialog', { name: 'Registrar Transação' });
+    const saveButton = screen.getByRole('button', { name: 'Salvar Transação' });
+    expect(dialog).toContainElement(saveButton);
+    expect(saveButton.closest('div')?.className ?? '').not.toMatch(/\bfixed\b/);
+  });
+
   it('registra uma despesa com os campos essenciais', async () => {
     renderModal();
     await userEvent.click(screen.getByRole('button', { name: 'Nova Transação' }));
