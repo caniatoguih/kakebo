@@ -1,13 +1,17 @@
 import rateLimit from 'express-rate-limit';
 
+const defaultApiLimit = process.env.NODE_ENV === 'development' ? 1_000 : 300;
+const apiLimit = Number(process.env.RATE_LIMIT_MAX ?? defaultApiLimit);
+
 // General API rate limiter
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  // As jornadas E2E percorrem todas as telas em sequência e compartilham o mesmo
-  // IP no runner. Ambientes normais preservam a barreira mais restritiva.
-  limit: process.env.NODE_ENV === 'test' ? 300 : 100,
+  // O limite é por IP e precisa acomodar aplicações com consultas frequentes,
+  // especialmente quando mais de uma pessoa compartilha a mesma rede.
+  limit: process.env.NODE_ENV === 'test' ? 1_000 : apiLimit,
   standardHeaders: 'draft-7', // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+  skip: (req) => req.path.startsWith('/api/maps') || req.originalUrl.startsWith('/api/maps/'),
   message: {
     message: 'Muitas requisições feitas a partir deste IP, por favor tente novamente após 15 minutos.',
   },

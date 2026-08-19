@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Receipt, PiggyBank, CreditCard, Menu, LogOut, Tags, Cloud, ScrollText, X, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, Receipt, PiggyBank, CreditCard, Menu, LogOut, Tags, Cloud, ScrollText, X, RefreshCw, Fuel, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,7 @@ export function Layout() {
   const location = useLocation();
   const { logout, usuario } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isPlanningOpen, setIsPlanningOpen] = useState(() => location.pathname.startsWith('/planejamento'));
   
   const navItems = [
     { name: 'Reflexão', shortName: 'Reflexão', description: 'Resumo mensal e análise dos pilares Kakebo', path: '/dashboard', icon: LayoutDashboard, primary: true },
@@ -56,12 +57,14 @@ export function Layout() {
           <nav className="flex-1 space-y-1.5 px-4 py-2">
             {navItems.map((item) => {
               const isActive = location.pathname.startsWith(item.path);
-              return (
+              return <div key={item.path}>
                 <Link
-                  key={item.path}
                   to={item.path}
                   title={item.description}
-                  onClick={() => setIsMobileOpen(false)}
+                  onClick={(event) => {
+                    if (item.path === '/planejamento') { event.preventDefault(); setIsPlanningOpen((current) => !current); return; }
+                    setIsMobileOpen(false);
+                  }}
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-300 border-l-[3px]",
                     isActive 
@@ -70,9 +73,10 @@ export function Layout() {
                   )}
                 >
                   <item.icon className={cn("h-4.5 w-4.5 transition-colors", isActive ? "text-emerald-700 dark:text-emerald-300" : "text-slate-500 dark:text-slate-400")} />
-                  {item.name}
+                  <span className="flex-1">{item.name}</span>{item.path === '/planejamento' && <ChevronDown className={cn('h-4 w-4 transition-transform', isPlanningOpen && 'rotate-180')} />}
                 </Link>
-              )
+                {item.path === '/planejamento' && isPlanningOpen && <div className="ml-5 mt-1 space-y-1 border-l border-emerald-200 pl-3 dark:border-emerald-900"><Link to="/planejamento" onClick={() => setIsMobileOpen(false)} className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold', location.pathname === '/planejamento' ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300' : 'text-muted-foreground hover:bg-muted hover:text-foreground')}><PiggyBank className="h-3.5 w-3.5" />Orçamento mensal</Link><Link to="/planejamento/combustivel" onClick={() => setIsMobileOpen(false)} className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold', location.pathname === '/planejamento/combustivel' ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300' : 'text-muted-foreground hover:bg-muted hover:text-foreground')}><Fuel className="h-3.5 w-3.5" />Consumo de Combustível</Link></div>}
+              </div>
             })}
           </nav>
 

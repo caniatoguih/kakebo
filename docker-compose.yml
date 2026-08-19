@@ -57,6 +57,9 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    # The node_modules volume survives container recreations. Install on boot so
+    # additions recorded in package-lock.json are immediately available to Vite.
+    command: sh -c "npm install && npm run dev -- --host"
     depends_on:
       app:
         condition: service_healthy

@@ -62,6 +62,11 @@ model Usuario {
   pagamentos_fatura      PagamentoFatura[]
   transferencias_grupo   TransferenciaGrupo[]
   auditorias_financeiras AuditoriaFinanceira[]
+  veiculos              UserVehicle[]
+  fuel_scenarios         FuelScenario[]
+  fuel_budget_allocations FuelScenarioBudgetAllocation[]
+  fuel_cashflow_forecasts FuelScenarioCashflowForecast[]
+  fuel_prices            FuelPrice[]
 
   @@map("usuarios")
 }
@@ -118,9 +123,11 @@ model Subcategoria {
   categoria_id String
   nome         String
 
-  categoria  Categoria   @relation(fields: [categoria_id], references: [id], onDelete: Cascade)
-  orcamentos Orcamento[]
-  transacoes Transacao[]
+  categoria      Categoria      @relation(fields: [categoria_id], references: [id], onDelete: Cascade)
+  orcamentos     Orcamento[]
+  transacoes     Transacao[]
+  fuel_scenarios FuelScenario[]
+  fuel_budget_allocations FuelScenarioBudgetAllocation[]
 
   @@index([categoria_id])
   @@map("subcategorias")
@@ -140,6 +147,124 @@ model Orcamento {
   @@unique([usuario_id, subcategoria_id, mes, ano])
   @@index([usuario_id, ano, mes])
   @@map("orcamentos")
+}
+
+model FuelScenario {
+  id                       String   @id @default(uuid())
+  usuario_id               String
+  nome                     String?
+  descricao                String?
+  user_vehicle_id          String?
+  fuel_type                String?
+  weekdays                 Int[]    @default([])
+  origin_label             String?
+  origin_lat               Decimal? @db.Decimal(10, 7)
+  origin_lng               Decimal? @db.Decimal(10, 7)
+  destination_label        String?
+  destination_lat          Decimal? @db.Decimal(10, 7)
+  destination_lng          Decimal? @db.Decimal(10, 7)
+  outbound_distance_km     Decimal  @db.Decimal(10, 3)
+  return_distance_km       Decimal  @db.Decimal(10, 3)
+  outbound_duration_min    Decimal? @db.Decimal(8, 2)
+  return_duration_min      Decimal? @db.Decimal(8, 2)
+  days_per_week            Decimal  @db.Decimal(4, 2)
+  weeks_per_month          Decimal  @db.Decimal(4, 2)
+  extra_days               Int      @default(0)
+  extra_margin_percent     Decimal  @default(0) @db.Decimal(5, 2)
+  fuel_efficiency_km_per_l Decimal  @db.Decimal(10, 3)
+  fuel_price_per_l         Decimal  @db.Decimal(10, 3)
+  monthly_distance_km      Decimal  @db.Decimal(10, 3)
+  monthly_cost             Decimal  @db.Decimal(12, 2)
+  suggested_budget         Decimal  @db.Decimal(12, 2)
+  annual_cost              Decimal  @db.Decimal(12, 2)
+  forecast_type            String
+  mapped_subcategoria_id   String?
+  mapped_mes               Int?
+  mapped_ano               Int?
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  usuario    Usuario       @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  vehicle    UserVehicle?  @relation(fields: [user_vehicle_id], references: [id], onDelete: SetNull)
+  mapped_sub Subcategoria? @relation(fields: [mapped_subcategoria_id], references: [id], onDelete: SetNull)
+  budget_allocations FuelScenarioBudgetAllocation[]
+  cashflow_forecasts FuelScenarioCashflowForecast[]
+
+  @@index([usuario_id, created_at])
+  @@map("fuel_scenarios")
+}
+
+model UserVehicle {
+  id                         String   @id @default(uuid())
+  usuario_id                 String
+  nome                       String
+  marca                      String?
+  modelo                     String?
+  ano                        Int?
+  fuel_type                  String
+  city_efficiency_km_per_l   Decimal  @db.Decimal(10, 3)
+  highway_efficiency_km_per_l Decimal @db.Decimal(10, 3)
+  ativo                      Boolean  @default(true)
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  scenarios FuelScenario[]
+
+  @@index([usuario_id, ativo])
+  @@map("user_vehicles")
+}
+
+model FuelPrice {
+  id          String   @id @default(uuid())
+  usuario_id  String
+  fuel_type   String
+  price_per_l Decimal  @db.Decimal(10, 3)
+  updated_at  DateTime @updatedAt
+
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@unique([usuario_id, fuel_type])
+  @@map("fuel_prices")
+}
+
+model FuelScenarioBudgetAllocation {
+  id               String   @id @default(uuid())
+  usuario_id       String
+  fuel_scenario_id String
+  subcategoria_id  String
+  mes              Int
+  ano              Int
+  valor_orcado     Decimal  @db.Decimal(12, 2)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  scenario FuelScenario @relation(fields: [fuel_scenario_id], references: [id], onDelete: Cascade)
+  subcategoria Subcategoria @relation(fields: [subcategoria_id], references: [id], onDelete: Cascade)
+
+  @@unique([fuel_scenario_id, mes, ano])
+  @@index([usuario_id, ano, mes])
+  @@map("fuel_scenario_budget_allocations")
+}
+
+model FuelScenarioCashflowForecast {
+  id               String   @id @default(uuid())
+  usuario_id       String
+  fuel_scenario_id String
+  transacao_id     String   @unique
+  mes              Int
+  ano              Int
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  scenario FuelScenario @relation(fields: [fuel_scenario_id], references: [id], onDelete: Cascade)
+  transacao Transacao @relation(fields: [transacao_id], references: [id], onDelete: Cascade)
+
+  @@unique([fuel_scenario_id, mes, ano])
+  @@index([usuario_id, ano, mes])
+  @@map("fuel_scenario_cashflow_forecasts")
 }
 
 model Transacao {
@@ -167,6 +292,7 @@ model Transacao {
   transferencia_grupo      TransferenciaGrupo? @relation(fields: [transferencia_grupo_id], references: [id], onDelete: SetNull)
   pagamento_fatura_saida   PagamentoFatura?    @relation("PagamentoFaturaSaida")
   pagamento_fatura_entrada PagamentoFatura?    @relation("PagamentoFaturaEntrada")
+  fuel_cashflow_forecast   FuelScenarioCashflowForecast?
 
   @@index([fatura_id])
   @@index([transferencia_grupo_id])

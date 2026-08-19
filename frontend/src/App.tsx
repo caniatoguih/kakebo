@@ -11,6 +11,7 @@ import { PwaStatus } from './components/PwaStatus';
 const Dashboard = React.lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Transacoes = React.lazy(() => import('./pages/Transacoes').then(m => ({ default: m.Transacoes })));
 const Planejamento = React.lazy(() => import('./pages/Planejamento').then(m => ({ default: m.Planejamento })));
+const ConsumoCombustivel = React.lazy(() => import('./pages/ConsumoCombustivel').then(m => ({ default: m.ConsumoCombustivel })));
 const Contas = React.lazy(() => import('./pages/Contas').then(m => ({ default: m.Contas })));
 const Categorias = React.lazy(() => import('./pages/Categorias').then(m => ({ default: m.Categorias })));
 const FluxoContabil = React.lazy(() => import('./pages/FluxoContabil').then(m => ({ default: m.FluxoContabil })));
@@ -64,6 +65,7 @@ function App() {
                     <Route path="dashboard" element={<Dashboard />} />
                     <Route path="transacoes" element={<Transacoes />} />
                     <Route path="planejamento" element={<Planejamento />} />
+                    <Route path="planejamento/combustivel" element={<ConsumoCombustivel />} />
                     <Route path="fluxo-contabil" element={<FluxoContabil />} />
                     <Route path="contas" element={<Contas />} />
                     <Route path="categorias" element={<Categorias />} />

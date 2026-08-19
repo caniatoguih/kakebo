@@ -2,7 +2,7 @@ import { api } from './api';
 import type { ApiMessage } from './transacoesService';
 
 export interface ContaData {
-  id?: string;
+  id: string;
   nome: string;
   tipo: 'Corrente' | 'Poupanca' | 'Dinheiro' | 'CartaoCredito';
   saldo_inicial?: number;
