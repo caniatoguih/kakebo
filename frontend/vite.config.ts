@@ -13,7 +13,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
-      includeAssets: ['favicon.svg', 'icons.svg'],
+      includeAssets: ['favicon.svg', 'icons.svg', 'brand/kakebo-app-icon.png'],
       workbox: {
         cleanupOutdatedCaches: true,
         navigateFallback: '/index.html',
@@ -27,12 +27,18 @@ export default defineConfig({
         name: 'Kakebo Financeiro',
         short_name: 'Kakebo',
         description: 'Seu assistente financeiro pessoal',
-        theme_color: '#ffffff',
+        theme_color: '#2F5A46',
+        background_color: '#FBF9F5',
         icons: [
           {
             src: '/favicon.svg',
             sizes: 'any',
             type: 'image/svg+xml'
+          },
+          {
+            src: '/brand/kakebo-app-icon.png',
+            sizes: '512x512',
+            type: 'image/png'
           }
         ]
       }

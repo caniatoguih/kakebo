@@ -68,8 +68,23 @@ model Usuario {
   fuel_cashflow_forecasts FuelScenarioCashflowForecast[]
   fuel_prices            FuelPrice[]
   planejamentos_salariais PlanejamentoSalarial[]
+  tokens_redefinicao_senha TokenRedefinicaoSenha[]
 
   @@map("usuarios")
+}
+
+model TokenRedefinicaoSenha {
+  id           String    @id @default(uuid())
+  usuario_id   String
+  token_hash   String    @unique
+  expira_em    DateTime
+  usado_em     DateTime?
+  data_criacao DateTime  @default(now())
+
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@index([usuario_id, expira_em])
+  @@map("tokens_redefinicao_senha")
 }
 
 model ContaBancaria {

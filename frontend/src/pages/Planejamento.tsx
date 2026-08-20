@@ -11,7 +11,6 @@ import { ContentGridSkeleton } from '@/components/ContentGridSkeleton';
 import { ChevronLeft, ChevronRight, Trash2, TrendingUp, Wallet, BookOpen, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { PlanejamentoSalarialPanel } from '@/components/Planejamento/PlanejamentoSalarialPanel';
 
 // ──────────────────────────────────────────────
 // Pilar config: label, ícone, cor
@@ -255,8 +254,6 @@ export function Planejamento(): React.ReactElement {
           <NovoOrcamentoModal mes={mes} ano={ano} />
         </div>
       </div>
-
-      <PlanejamentoSalarialPanel />
 
       {/* Resumo do mês */}
       {orcamentos.length > 0 && (

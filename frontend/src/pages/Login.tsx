@@ -5,11 +5,13 @@ import * as z from 'zod';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/services/authService';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FormFieldError } from '@/components/FormFieldError';
 import { Label } from '@/components/ui/label';
+import { AuthLayout } from '@/components/auth/AuthLayout';
+import { PasswordInput } from '@/components/auth/PasswordInput';
 
 const loginSchema = z.object({
   email: z.string().email('E-mail inválido'),
@@ -42,36 +44,35 @@ export function Login() {
   };
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-md shadow-lg border-border">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-3xl font-bold text-center text-primary tracking-tight">Kakebo</CardTitle>
-          <CardDescription className="text-center text-base">Entre na sua conta para gerenciar seu fluxo</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
-            {errorMsg && <div role="alert" className="p-3 bg-destructive/15 text-destructive text-sm rounded-md font-medium">{errorMsg}</div>}
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" placeholder="seu@email.com" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'login-email-error' : undefined} {...register('email')} />
-              <FormFieldError id="login-email-error" message={errors.email?.message} />
-            </div>
-            <div className="space-y-2">
+    <AuthLayout eyebrow="Seu caderno financeiro" title="Boas-vindas de volta" description="Acesse seu Kakebo para acompanhar, planejar e refletir sobre suas escolhas.">
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <CardContent className="space-y-5 sm:px-8">
+          {errorMsg && <div role="alert" className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm font-medium text-destructive">{errorMsg}</div>}
+          <div className="space-y-2">
+            <Label htmlFor="email">E-mail</Label>
+            <Input id="email" type="email" autoComplete="email" placeholder="seu@email.com" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'login-email-error' : undefined} {...register('email')} />
+            <FormFieldError id="login-email-error" message={errors.email?.message} />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
               <Label htmlFor="senha">Senha</Label>
-              <Input id="senha" type="password" placeholder="••••••••" aria-invalid={!!errors.senha} aria-describedby={errors.senha ? 'login-password-error' : undefined} {...register('senha')} />
-              <FormFieldError id="login-password-error" message={errors.senha?.message} />
+              <Link to="/esqueci-senha" className="text-xs font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                Esqueci minha senha
+              </Link>
             </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full text-base py-6" disabled={isSubmitting}>
-              {isSubmitting ? 'Entrando...' : 'Entrar'}
-            </Button>
-            <div className="text-center text-sm text-muted-foreground">
-              Não tem uma conta? <Link to="/cadastro" className="text-primary font-medium hover:underline">Cadastre-se</Link>
-            </div>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+            <PasswordInput id="senha" autoComplete="current-password" placeholder="••••••••" aria-invalid={!!errors.senha} aria-describedby={errors.senha ? 'login-password-error' : undefined} {...register('senha')} />
+            <FormFieldError id="login-password-error" message={errors.senha?.message} />
+          </div>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-4 sm:px-8 sm:pb-8">
+          <Button type="submit" className="w-full text-base" size="lg" disabled={isSubmitting} aria-busy={isSubmitting}>
+            {isSubmitting ? 'Entrando...' : 'Entrar'}
+          </Button>
+          <div className="text-center text-sm text-muted-foreground">
+            Não tem uma conta? <Link to="/cadastro" className="font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Cadastre-se</Link>
+          </div>
+        </CardFooter>
+      </form>
+    </AuthLayout>
   );
 }

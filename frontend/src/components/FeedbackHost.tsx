@@ -43,12 +43,12 @@ export function FeedbackHost() {
       {feedbackQueue.map((feedback) => {
         const Icon = feedback.type === 'success' ? CheckCircle2 : feedback.type === 'info' ? Info : feedback.type === 'warning' ? TriangleAlert : AlertCircle;
         const color = feedback.type === 'success'
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200'
           : feedback.type === 'info'
-            ? 'border-blue-200 bg-blue-50 text-blue-800'
+            ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200'
             : feedback.type === 'warning'
-              ? 'border-amber-200 bg-amber-50 text-amber-900'
-              : 'border-rose-200 bg-rose-50 text-rose-800';
+              ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200'
+              : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-200';
         return <div key={feedback.id} role={feedback.type === 'error' ? 'alert' : 'status'} className={`flex items-start gap-3 rounded-xl border p-4 shadow-lg ${color}`}>
           <Icon className="mt-0.5 h-5 w-5 shrink-0" />
           <div className="flex-1"><p className="text-sm font-medium">{feedback.message}</p>{feedback.action && <button type="button" className="mt-2 text-sm font-bold underline underline-offset-2" onClick={() => { setFeedbackQueue((current) => current.filter((item) => item.id !== feedback.id)); void feedback.action?.onClick(); }}>{feedback.action.label}</button>}</div>

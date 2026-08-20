@@ -1,0 +1,100 @@
+:root {
+  --kakebo-forest: 152 31% 27%;
+  --kakebo-sage: 94 18% 66%;
+  --kakebo-blue: 207 23% 54%;
+  --kakebo-terracotta: 12 49% 57%;
+  --kakebo-clay: 24 49% 74%;
+  --kakebo-cream: 34 39% 93%;
+  --kakebo-graphite: 0 0% 20%;
+
+  --background: 40 43% 97%;
+  --foreground: var(--kakebo-graphite);
+  --card: 0 0% 100%;
+  --card-foreground: var(--kakebo-graphite);
+  --popover: 0 0% 100%;
+  --popover-foreground: var(--kakebo-graphite);
+  --primary: var(--kakebo-forest);
+  --primary-foreground: 0 0% 100%;
+  --secondary: 100 21% 93%;
+  --secondary-foreground: var(--kakebo-forest);
+  --muted: var(--kakebo-cream);
+  --muted-foreground: 32 6% 43%;
+  --accent: 94 18% 90%;
+  --accent-foreground: var(--kakebo-forest);
+  --destructive: var(--kakebo-terracotta);
+  --destructive-foreground: 0 0% 100%;
+  --border: 34 24% 87%;
+  --input: 34 24% 87%;
+  --ring: var(--kakebo-forest);
+  --brand-panel: var(--kakebo-forest);
+  --brand-panel-foreground: 0 0% 100%;
+
+  --success: 156 44% 33%;
+  --success-foreground: 0 0% 100%;
+  --warning: 36 58% 49%;
+  --warning-foreground: 30 36% 16%;
+  --info: var(--kakebo-blue);
+  --info-foreground: 0 0% 100%;
+
+  --chart-income: 156 44% 33%;
+  --chart-expense: var(--kakebo-terracotta);
+  --chart-extra: var(--kakebo-blue);
+  --chart-leisure: var(--kakebo-sage);
+  --chart-culture: var(--kakebo-clay);
+  --chart-grid: 35 27% 90%;
+  --chart-label: var(--muted-foreground);
+  --chart-category-1: var(--kakebo-forest);
+  --chart-category-2: var(--kakebo-terracotta);
+  --chart-category-3: var(--kakebo-blue);
+  --chart-category-4: var(--kakebo-sage);
+  --chart-category-5: var(--kakebo-clay);
+  --chart-category-6: 42 51% 58%;
+  --chart-category-7: 175 28% 45%;
+  --chart-category-8: 278 20% 57%;
+
+  --radius: 0.75rem;
+  --shadow-card: 0 1px 2px hsl(var(--kakebo-graphite) / 0.04), 0 4px 12px hsl(var(--kakebo-graphite) / 0.04);
+}
+
+.dark {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 96%;
+  --card: 0 0% 4%;
+  --card-foreground: 0 0% 96%;
+  --popover: 0 0% 5%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 0 0% 96%;
+  --primary-foreground: 0 0% 4%;
+  --secondary: 0 0% 9%;
+  --secondary-foreground: 0 0% 92%;
+  --muted: 0 0% 9%;
+  --muted-foreground: 0 0% 65%;
+  --accent: 0 0% 13%;
+  --accent-foreground: 0 0% 96%;
+  --destructive: 12 49% 57%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 17%;
+  --input: 0 0% 17%;
+  --ring: 0 0% 82%;
+  --brand-panel: 0 0% 0%;
+  --brand-panel-foreground: 0 0% 100%;
+  --success: 149 35% 50%;
+  --warning: 36 58% 58%;
+  --info: 207 32% 65%;
+  --chart-grid: 0 0% 16%;
+  --chart-label: 0 0% 65%;
+  --chart-income: 149 35% 50%;
+  --chart-expense: 12 58% 62%;
+  --chart-extra: 207 32% 65%;
+  --chart-leisure: 94 25% 60%;
+  --chart-culture: 24 45% 65%;
+  --chart-category-1: 0 0% 88%;
+  --chart-category-2: var(--chart-expense);
+  --chart-category-3: var(--chart-extra);
+  --chart-category-4: var(--chart-leisure);
+  --chart-category-5: var(--chart-culture);
+  --chart-category-6: 42 58% 62%;
+  --chart-category-7: 175 35% 55%;
+  --chart-category-8: 278 30% 68%;
+  --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.2), 0 8px 24px hsl(0 0% 0% / 0.16);
+}

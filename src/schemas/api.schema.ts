@@ -21,6 +21,19 @@ export const registerSchema = z.object({
   body: loginSchema.shape.body.extend({ nome, senha: z.string().min(8).max(128) }),
 });
 
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z.string().trim().toLowerCase().email().max(254),
+  }),
+});
+
+export const resetPasswordSchema = z.object({
+  body: z.object({
+    token: z.string().length(64).regex(/^[a-f0-9]+$/i),
+    senha: z.string().min(8).max(128),
+  }),
+});
+
 export const createContaSchema = z.object({
   body: z.object({
     nome,

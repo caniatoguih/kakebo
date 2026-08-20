@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { getJwtSecret } from '../src/config/security';
-import { loginSchema, createContaSchema, batchOrcamentoSchema, fluxoSchema } from '../src/schemas/api.schema';
+import { loginSchema, createContaSchema, batchOrcamentoSchema, fluxoSchema, forgotPasswordSchema, resetPasswordSchema } from '../src/schemas/api.schema';
 import { importTransactionsSchema, listTransacoesSchema } from '../src/schemas/transacao.schema';
 import prisma from '../src/lib/prisma';
 import { assertAccountOwnership, assertSubcategoryOwnership } from '../src/services/OwnershipService';
@@ -37,6 +37,14 @@ describe('validação das entradas', () => {
   it('normaliza e-mail de login', () => {
     const result = loginSchema.parse({ body: { email: ' USER@EXAMPLE.COM ', senha: '12345678' } });
     expect(result.body.email).toBe('user@example.com');
+  });
+
+  it('valida as entradas de recuperação de senha', () => {
+    const request = forgotPasswordSchema.parse({ body: { email: ' USER@EXAMPLE.COM ' } });
+    expect(request.body.email).toBe('user@example.com');
+    expect(() => resetPasswordSchema.parse({ body: { token: 'a'.repeat(64), senha: '12345678' } })).not.toThrow();
+    expect(() => resetPasswordSchema.parse({ body: { token: 'token-invalido', senha: '12345678' } })).toThrow();
+    expect(() => resetPasswordSchema.parse({ body: { token: 'a'.repeat(64), senha: 'curta' } })).toThrow();
   });
 
   it('exige os detalhes de um cartão', () => {

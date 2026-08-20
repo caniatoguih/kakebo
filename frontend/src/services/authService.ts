@@ -13,6 +13,7 @@ export interface RegisterData {
 
 export interface AuthUser { id: string; nome: string; email: string }
 export interface LoginResponse { usuario: AuthUser }
+export interface MessageResponse { message: string }
 
 export const authService = {
   login: async (data: LoginData): Promise<LoginResponse> => {
@@ -21,6 +22,14 @@ export const authService = {
   },
   register: async (data: RegisterData): Promise<{ usuario: AuthUser }> => {
     const response = await api.post('/auth/register', { nome: data.nome, email: data.email, senha: data.senha });
+    return response.data;
+  },
+  forgotPassword: async (email: string): Promise<MessageResponse> => {
+    const response = await api.post('/auth/esqueci-senha', { email });
+    return response.data;
+  },
+  resetPassword: async (token: string, senha: string): Promise<MessageResponse> => {
+    const response = await api.post('/auth/redefinir-senha', { token, senha });
     return response.data;
   },
   me: async (): Promise<AuthUser> => {

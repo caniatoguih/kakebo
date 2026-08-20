@@ -27,3 +27,13 @@ export const authLimiter = rateLimit({
     message: 'Muitas tentativas de autenticação, por favor tente novamente após uma hora.',
   },
 });
+
+export const passwordResetRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: process.env.NODE_ENV === 'test' ? 1_000 : 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    message: 'Muitas solicitacoes de recuperacao. Tente novamente apos 15 minutos.',
+  },
+});

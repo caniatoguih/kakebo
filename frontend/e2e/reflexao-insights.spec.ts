@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 const pillar = { orcado: 1000, realizado: 800, saldo: 200, categorias: {} };
@@ -33,4 +34,7 @@ test('apresenta os novos indicadores da Reflexão sem overflow', async ({ page }
   await expect(page.getByText('Evolução financeira')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Projeção e saúde financeira' })).toBeVisible();
   await expect(page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).resolves.toBe(true);
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  const blockingViolations = accessibility.violations.filter((violation) => violation.impact === 'critical' || violation.impact === 'serious');
+  expect(blockingViolations, 'A Reflexão não deve ter violações críticas ou graves de acessibilidade').toEqual([]);
 });

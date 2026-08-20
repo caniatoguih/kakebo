@@ -22,7 +22,7 @@ export function SetupChecklist({ hasAccount, hasCategory, hasBudget, hasTransact
       <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${(completed / steps.length) * 100}%` }} /></div>
       <ol className="grid gap-3 md:grid-cols-2">
         {steps.map((step) => <li key={step.path} className="flex items-start gap-3 rounded-lg border bg-background p-3">
-          {step.complete ? <CheckCircle2 aria-label="Concluído" className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> : <Circle aria-label="Pendente" className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />}
+          {step.complete ? <CheckCircle2 aria-label="Concluído" className="mt-0.5 h-5 w-5 shrink-0 text-success" /> : <Circle aria-label="Pendente" className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />}
           <div className="min-w-0 flex-1"><p className="font-medium">{step.label}</p><p className="text-xs text-muted-foreground">{step.description}</p></div>
           {!step.complete && <Button asChild size="sm" variant="outline"><Link to={step.path}>Começar</Link></Button>}
         </li>)}

@@ -12,7 +12,18 @@ vi.mock('@/services/orcamentosService', () => ({ orcamentosService: { listar: mo
 vi.mock('@/services/transacoesService', () => ({ transacoesService: { listar: mocks.transactions } }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ usuario: { id: 'user-id' } }) }));
 
-const pillars = Object.fromEntries(['Sobrevivencia', 'Lazer', 'Cultura', 'Extras'].map((name) => [name, { orcado: 1000, realizado: 800, saldo: 200, categorias: {} }]));
+const pillars = Object.fromEntries(['Sobrevivencia', 'Lazer', 'Cultura', 'Extras'].map((name) => [name, {
+  orcado: 1000,
+  realizado: 800,
+  saldo: 200,
+  categorias: {
+    [`Categoria ${name}`]: {
+      orcado: 1000,
+      realizado: 800,
+      subcategorias: { [`Subcategoria ${name}`]: { orcado: 1000, realizado: 800 } },
+    },
+  },
+}])) as PainelReflexaoData['pilares'];
 const data: PainelReflexaoData = {
   mes: 8, ano: 2026,
   resumo: {
@@ -48,6 +59,9 @@ describe('Dashboard de reflexão', () => {
     expect(screen.getByText('46,7%')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Insights do mês' })).toBeInTheDocument();
     expect(screen.getByText('Despesas em queda')).toBeInTheDocument();
+    expect(screen.getByText('Para onde foi seu dinheiro?')).toBeInTheDocument();
+    expect(screen.getByLabelText('Distribuição percentual das despesas por categoria')).toBeInTheDocument();
+    expect(screen.getByLabelText('Participação percentual e valor absoluto das subcategorias')).toBeInTheDocument();
     expect(screen.getByLabelText('Evolução de receitas e despesas realizadas nos últimos seis meses')).toBeInTheDocument();
     expect(screen.getByLabelText('Categorias com os maiores desvios em relação ao orçamento')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Projeção e saúde financeira' })).toBeInTheDocument();

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useDeferredValue, useMemo, useState } from 'react';
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -50,7 +50,12 @@ export function Transacoes() {
   const month = params.get('mes') ?? new Date().toISOString().slice(0, 7);
   const startDate = params.get('inicio') ?? '';
   const endDate = params.get('fim') ?? '';
+  const [draftStartDate, setDraftStartDate] = useState(startDate);
+  const [draftEndDate, setDraftEndDate] = useState(endDate);
   const page = Math.max(1, Number(params.get('pagina') ?? 1));
+
+  useEffect(() => { setDraftStartDate(startDate); }, [startDate]);
+  useEffect(() => { setDraftEndDate(endDate); }, [endDate]);
 
   const setFilter = (key: string, value?: string) => {
     const next = new URLSearchParams(params);
@@ -61,6 +66,18 @@ export function Transacoes() {
     setParams(next, { replace: true });
   };
   const clearFilters = () => setParams(new URLSearchParams({ periodo: 'Todos' }), { replace: true });
+  const customPeriodError = draftStartDate && draftEndDate && draftStartDate > draftEndDate
+    ? 'A data final deve ser igual ou posterior à data inicial.'
+    : null;
+  const customPeriodChanged = draftStartDate !== startDate || draftEndDate !== endDate;
+  const applyCustomPeriod = () => {
+    if (customPeriodError) return;
+    const next = new URLSearchParams(params);
+    if (draftStartDate) next.set('inicio', draftStartDate); else next.delete('inicio');
+    if (draftEndDate) next.set('fim', draftEndDate); else next.delete('fim');
+    next.delete('pagina');
+    setParams(next, { replace: true });
+  };
 
   const filters = useMemo<TransactionFilters>(() => {
     const [year, selectedMonth] = month.split('-').map(Number);
@@ -176,7 +193,7 @@ export function Transacoes() {
         <div><Label htmlFor="transaction-subcategory-filter">Subcategoria</Label><Select value={subcategory} onValueChange={(value) => setFilter('subcategoria', value)}><SelectTrigger id="transaction-subcategory-filter" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas</SelectItem>{categorias.flatMap((category) => category.subcategorias.map((item) => <SelectItem key={item.id} value={item.id}>{category.nome} · {item.nome}</SelectItem>))}</SelectContent></Select></div>
         <div><Label htmlFor="transaction-period-filter">Período</Label><Select value={period} onValueChange={(value) => setFilter('periodo', value)}><SelectTrigger id="transaction-period-filter" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Mes">Mês específico</SelectItem><SelectItem value="Personalizado">Período personalizado</SelectItem><SelectItem value="Todos">Todo o histórico</SelectItem></SelectContent></Select></div>
         {period === 'Mes' && <div><Label htmlFor="transaction-month">Mês</Label><Input id="transaction-month" type="month" className="mt-1" value={month} onChange={(event) => setFilter('mes', event.target.value)} /></div>}
-        {period === 'Personalizado' && <><div><Label htmlFor="transaction-start">Data inicial</Label><Input id="transaction-start" type="date" className="mt-1" value={startDate} max={endDate || undefined} onChange={(event) => setFilter('inicio', event.target.value)} /></div><div><Label htmlFor="transaction-end">Data final</Label><Input id="transaction-end" type="date" className="mt-1" value={endDate} min={startDate || undefined} onChange={(event) => setFilter('fim', event.target.value)} /></div></>}
+        {period === 'Personalizado' && <><div><Label htmlFor="transaction-start">Data inicial</Label><Input id="transaction-start" type="date" className="mt-1" value={draftStartDate} max={draftEndDate || undefined} onChange={(event) => setDraftStartDate(event.target.value)} /></div><div><Label htmlFor="transaction-end">Data final</Label><Input id="transaction-end" type="date" className="mt-1" value={draftEndDate} min={draftStartDate || undefined} onChange={(event) => setDraftEndDate(event.target.value)} /></div><div className="flex items-end"><Button type="button" className="w-full" disabled={Boolean(customPeriodError) || !customPeriodChanged} onClick={applyCustomPeriod}>Aplicar período</Button></div>{customPeriodError && <p role="alert" className="text-sm font-medium text-rose-700 md:col-span-4">{customPeriodError}</p>}</>}
       </div>}
       <div className="mt-3 flex flex-wrap items-center gap-2">{activeFilters.map((filter) => <button key={filter.key} aria-label={`Remover filtro ${filter.label}`} onClick={() => filter.key === 'periodo' ? setFilter('periodo', 'Todos') : setFilter(filter.key)} className="inline-flex min-h-11 items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{filter.label}<X className="h-3 w-3" /></button>)}<Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button></div>
     </CardContent></Card>
