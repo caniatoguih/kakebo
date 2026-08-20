@@ -6,6 +6,7 @@ import { Layout } from './components/layout/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FeedbackHost } from './components/FeedbackHost';
 import { PwaStatus } from './components/PwaStatus';
+import { PaymentReminderNotifications } from './components/PaymentReminderNotifications';
 
 // Lazy loading components
 const Dashboard = React.lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -18,6 +19,7 @@ const FluxoContabil = React.lazy(() => import('./pages/FluxoContabil').then(m =>
 const Recorrencias = React.lazy(() => import('./pages/Recorrencias').then(m => ({ default: m.Recorrencias })));
 const Login = React.lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 const Cadastro = React.lazy(() => import('./pages/Cadastro').then(m => ({ default: m.Cadastro })));
+const Notificacoes = React.lazy(() => import('./pages/Notificacoes').then(m => ({ default: m.Notificacoes })));
 
 const queryClient = new QueryClient();
 
@@ -50,6 +52,7 @@ function App() {
           <AuthProvider>
             <FeedbackHost />
             <PwaStatus />
+            <PaymentReminderNotifications />
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
                 {/* Public Routes */}
@@ -70,6 +73,7 @@ function App() {
                     <Route path="contas" element={<Contas />} />
                     <Route path="categorias" element={<Categorias />} />
                     <Route path="recorrencias" element={<Recorrencias />} />
+                    <Route path="notificacoes" element={<Notificacoes />} />
                   </Route>
                 </Route>
               </Routes>
