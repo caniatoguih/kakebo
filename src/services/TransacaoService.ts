@@ -1451,7 +1451,7 @@ export class TransacaoService {
       });
 
       return { message: `${idsExcluidos.size} transações excluídas com sucesso.` };
-    });
+    }, { maxWait: 10_000, timeout: 60_000 });
   }
 
   async prorrogarRecorrencia(transacao_pai_id: string, novos_meses: number, usuario_id: string) {

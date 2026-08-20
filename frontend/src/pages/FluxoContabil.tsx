@@ -47,8 +47,9 @@ export function FluxoContabil() {
   // Filtro de status: 'Pago' (Realizado), 'Pendente' (Previsto), 'Ambos'
   const [statusFilter, setStatusFilter] = useState<'Pago' | 'Pendente' | 'Ambos'>('Ambos');
 
-  // Filtro de conta bancária: 'all' (Todas) ou contaId
-  const [contaSelecionada, setContaSelecionada] = useState<string>('all');
+  // Filtro de contas: vazio representa todas as contas.
+  const [contasSelecionadas, setContasSelecionadas] = useState<string[]>([]);
+  const [isAccountsDropdownOpen, setIsAccountsDropdownOpen] = useState(false);
 
   // Modo Tela Cheia (Fullscreen)
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -107,15 +108,16 @@ export function FluxoContabil() {
     queryKey: ['contas-list'],
     queryFn: () => contasService.listar(),
   });
+  const selectedAccountName = contasSelecionadas.length === 1 ? contas?.find((conta: any) => conta.id === contasSelecionadas[0])?.nome : undefined;
 
   // Query React Query do DFC
   const { data, isLoading, isError, isFetching, error: queryError, refetch } = useQuery({
-    queryKey: ['fluxo-contabil', startMonth, endMonth, statusFilter, contaSelecionada],
+    queryKey: ['fluxo-contabil', startMonth, endMonth, statusFilter, contasSelecionadas],
     queryFn: () => transacoesService.obterFluxoContabil(
       startMonth,
       endMonth,
       statusFilter,
-      contaSelecionada === 'all' ? undefined : contaSelecionada
+      contasSelecionadas.length ? contasSelecionadas : undefined
     ),
     placeholderData: (previousData) =>
       !isMobileViewport || previousData?.meses?.includes(mobileMonth) ? previousData : undefined,
@@ -397,21 +399,11 @@ export function FluxoContabil() {
             </div>
           </div>
 
-          {/* Divisor vertical em telas maiores */}
-          {/* Filtro de Conta Bancária */}
-          <div className="flex min-w-0 flex-col gap-1.5 md:min-w-[180px] md:flex-1">
-            <Label htmlFor="conta-filtro" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Conta</Label>
-            <Select value={contaSelecionada} onValueChange={setContaSelecionada}>
-              <SelectTrigger id="conta-filtro" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
-                <SelectValue placeholder="Todas as Contas" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="all">Todas as Contas</SelectItem>
-                {contas?.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Filtro de contas */}
+          <div className="relative flex min-w-0 flex-col gap-1.5 md:min-w-[220px] md:flex-1">
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Contas</Label>
+            <Button type="button" variant="outline" className="h-10 w-full justify-between rounded-xl text-xs font-bold" onClick={() => setIsAccountsDropdownOpen((current) => !current)}>{contasSelecionadas.length === 0 ? 'Todas as contas' : selectedAccountName ?? `${contasSelecionadas.length} contas selecionadas`}<ChevronDown className={`h-4 w-4 transition-transform ${isAccountsDropdownOpen ? 'rotate-180' : ''}`} /></Button>
+            {isAccountsDropdownOpen && <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-xl border bg-card p-2 shadow-lg"><div className="mb-1 flex justify-end"><Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setContasSelecionadas([])}>Limpar seleção</Button></div>{contas?.map((conta: any) => <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-900" key={conta.id}><input type="checkbox" checked={contasSelecionadas.includes(conta.id)} onChange={(event) => setContasSelecionadas((current) => event.target.checked ? [...current, conta.id] : current.filter((id) => id !== conta.id))} />{conta.nome}</label>)}{!contas?.length && <p className="px-2 py-2 text-xs text-muted-foreground">Nenhuma conta cadastrada.</p>}</div>}
           </div>
 
           {/* Divisor vertical */}
@@ -694,7 +686,7 @@ export function FluxoContabil() {
             <div className="flex items-center justify-between px-6 py-4 bg-slate-50/50 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800/80 no-print">
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
                 Visualizando {dfc.meses.length} meses ({statusFilter === 'Pago' ? 'Apenas Realizado' : statusFilter === 'Pendente' ? 'Apenas Previsto' : 'Realizado + Previsto'}) 
-                {contaSelecionada !== 'all' && <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">• Conta Filtrada</span>}
+                {contasSelecionadas.length > 0 && <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">• {contasSelecionadas.length} {contasSelecionadas.length === 1 ? 'conta filtrada' : 'contas filtradas'}</span>}
               </span>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={expandAll} className="h-8 px-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 rounded-lg">

@@ -22,14 +22,16 @@ export class RelatorioController {
     const inicio = req.query.inicio as string;
     const fim = req.query.fim as string;
     const status = req.query.status as string || 'Pago';
-    const conta_id = req.query.conta_id as string || undefined;
+    const contaIds = typeof req.query.conta_ids === 'string'
+      ? req.query.conta_ids.split(',').filter(Boolean)
+      : req.query.conta_id ? [req.query.conta_id as string] : undefined;
 
     if (!inicio || !fim) {
       return res.status(400).json({ message: "Parâmetros 'inicio' e 'fim' (formato YYYY-MM) são obrigatórios." });
     }
 
     try {
-      const relatorio = await this.relatorioService.gerarFluxoContabil(usuario_id, inicio, fim, status, conta_id);
+      const relatorio = await this.relatorioService.gerarFluxoContabil(usuario_id, inicio, fim, status, contaIds);
       return res.json(relatorio);
     } catch (error: any) {
       return res.status(500).json({ message: 'Erro ao gerar fluxo contábil', error: error.message });

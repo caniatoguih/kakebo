@@ -89,8 +89,8 @@ export const transacoesService = {
     const response = await api.post('/transacoes/convert-to-transfer', data);
     return response.data;
   },
-  obterFluxoContabil: async (inicio: string, fim: string, status?: string, conta_id?: string): Promise<any> => {
-    const response = await api.get('/relatorios/fluxo-contabil', { params: { inicio, fim, status, conta_id } });
+  obterFluxoContabil: async (inicio: string, fim: string, status?: string, conta_ids?: string[]): Promise<any> => {
+    const response = await api.get('/relatorios/fluxo-contabil', { params: { inicio, fim, status, conta_ids: conta_ids?.join(',') } });
     return response.data;
   },
   prorrogar: async (transacao_pai_id: string, novos_meses: number): Promise<ApiMessage> => {

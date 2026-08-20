@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { transacoesService, type TransacaoData } from '@/services/transacoesService';
+import { transacoesService, type TransacaoData, type TransactionListResponse } from '@/services/transacoesService';
 import { orcamentosService, type OrcamentoPayload } from '@/services/orcamentosService';
 import { categoriasService } from '@/services/categoriasService';
 import { Sparkles, TrendingUp, TrendingDown, Wallet, Check, Calendar } from 'lucide-react';
@@ -33,6 +33,39 @@ interface SugestaoOrcamento {
   selecionado: boolean;
 }
 
+const TRANSACTIONS_PAGE_SIZE = 100;
+
+async function listarTodasTransacoesDoPeriodo(mes: number, ano: number): Promise<TransactionListResponse> {
+  const primeiraPagina = await transacoesService.listar({
+    mes,
+    ano,
+    page: 1,
+    limit: TRANSACTIONS_PAGE_SIZE,
+  });
+
+  const totalPaginas = Math.ceil(primeiraPagina.total / TRANSACTIONS_PAGE_SIZE);
+  if (totalPaginas <= 1) return primeiraPagina;
+
+  const paginasRestantes = await Promise.all(
+    Array.from({ length: totalPaginas - 1 }, (_, index) =>
+      transacoesService.listar({
+        mes,
+        ano,
+        page: index + 2,
+        limit: TRANSACTIONS_PAGE_SIZE,
+      }),
+    ),
+  );
+
+  return {
+    total: primeiraPagina.total,
+    transacoes: [
+      ...primeiraPagina.transacoes,
+      ...paginasRestantes.flatMap((pagina) => pagina.transacoes),
+    ],
+  };
+}
+
 export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -50,7 +83,7 @@ export function DesenharOrcamentoModal({ mes, ano }: Props): React.ReactElement 
   // Busca as transações previstas/realizadas do mês selecionado
   const { data: transacoesResponse, isLoading, isError, isFetching, error: queryError, refetch } = useQuery({
     queryKey: ['transacoes-planejamento-forecast', mes, ano],
-    queryFn: () => transacoesService.listar({ mes, ano, limit: 1000 }),
+    queryFn: () => listarTodasTransacoesDoPeriodo(mes, ano),
     enabled: open,
   });
 

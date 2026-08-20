@@ -272,12 +272,12 @@ export class RelatorioService {
     };
   }
 
-  async gerarFluxoContabil(usuario_id: string, inicioStr: string, fimStr: string, statusFilter: string = 'Pago', contaIdFilter?: string) {
+  async gerarFluxoContabil(usuario_id: string, inicioStr: string, fimStr: string, statusFilter: string = 'Pago', contaIdsFilter?: string[]) {
     // 1. Obter todas as contas do usuário (opcionalmente filtrada) e somar os seus saldos iniciais
     const contas = await prisma.contaBancaria.findMany({
       where: {
         usuario_id,
-        ...(contaIdFilter ? { id: contaIdFilter } : {})
+        ...(contaIdsFilter?.length ? { id: { in: contaIdsFilter } } : {})
       }
     });
     const saldoInicialAbstrato = contas.reduce((sum: number, c: any) => sum + Number(c.saldo_inicial), 0);
@@ -294,13 +294,13 @@ export class RelatorioService {
         usuario_id,
         status: statusQuery,
         tipo: { in: ['Receita', 'Despesa', 'Transferencia'] },
-        ...(contaIdFilter ? {
+        ...(contaIdsFilter?.length ? {
           OR: [
-            { conta_id: contaIdFilter },
+            { conta_id: { in: contaIdsFilter } },
             {
               conta: {
                 cartao_detalhe: {
-                  conta_pagamento_padrao_id: contaIdFilter
+                  conta_pagamento_padrao_id: { in: contaIdsFilter }
                 }
               }
             }
@@ -394,7 +394,6 @@ export class RelatorioService {
       
       if (t.conta?.tipo === 'CartaoCredito' && t.tipo !== 'Transferencia') {
         catNome = `Fatura ${t.conta.nome}`;
-        subCatNome = `Fatura ${t.conta.nome}`;
       } else if (t.tipo === 'Transferencia') {
         catNome = 'Transferências';
         if (t.descricao.includes('[Saída]')) {

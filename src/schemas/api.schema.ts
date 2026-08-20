@@ -148,6 +148,6 @@ export const fluxoSchema = z.object({
   query: z.object({
     inicio: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
     fim: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
-    status: z.enum(['Pendente', 'Pago', 'Ambos']).optional(), conta_id: uuid.optional(),
+    status: z.enum(['Pendente', 'Pago', 'Ambos']).optional(), conta_id: uuid.optional(), conta_ids: z.string().optional(),
   }).refine((data) => data.inicio <= data.fim, { message: 'O período inicial deve ser anterior ao final.' }),
 });
