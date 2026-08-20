@@ -26,7 +26,6 @@ async function showNotification(reminder: PaymentReminder) {
   const options: NotificationOptions = {
     body: `${reminder.descricao} (${reminder.conta_nome}) — ${formatCurrency(reminder.valor)}; ${dueLabel(reminder.data_vencimento)}.`,
     tag: `kakebo:${reminder.id}`,
-    renotify: false,
   };
 
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {

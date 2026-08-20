@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planejador Anual de Salário e Férias</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--text:#172033;--muted:#667085;--line:#e4e7ec;--primary:#315efb;--primary2:#2447c6;--ok:#067647;--danger:#b42318;--soft:#f8fafc;--blue:#eff4ff;--amber:#fff8e8;--shadow:0 12px 28px rgba(16,24,40,.07)}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text)}
+.wrap{max-width:1380px;margin:28px auto;padding:0 18px 50px}.header{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:20px}
+h1{font-size:28px;margin:0 0 6px}.sub{font-size:14px;color:var(--muted);max-width:850px;line-height:1.45}.badge{background:var(--blue);color:#2d55c7;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:800;white-space:nowrap}
+.layout{display:grid;grid-template-columns:390px 1fr;gap:20px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:var(--shadow)}
+h2{font-size:17px;margin:0 0 15px}h3{font-size:14px;margin:18px 0 9px}.field{margin-bottom:13px}label{font-size:12px;font-weight:700;color:#344054;display:block;margin-bottom:6px}
+input,select{width:100%;border:1px solid #d0d5dd;border-radius:10px;padding:10px 11px;background:#fff;font-size:14px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;color:#344054;padding:6px 0}.check input{width:auto}.hint{font-size:11px;color:var(--muted);line-height:1.4;margin-top:4px}
+button{border:0;border-radius:11px;padding:11px 14px;font-weight:800;cursor:pointer}.primary{width:100%;background:var(--primary);color:#fff;margin-top:8px}.secondary{background:#eef2ff;color:#344fa8}.dangerbtn{background:#fff1f0;color:#b42318;padding:8px 10px}
+.vac-card{border:1px solid var(--line);border-radius:13px;padding:12px;margin-bottom:10px;background:#fbfcfe}.vac-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;font-size:12px;font-weight:800}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:11px;margin-bottom:17px}.kpi{background:#fafbff;border:1px solid var(--line);border-radius:14px;padding:14px}.kpi small{display:block;color:var(--muted);margin-bottom:5px}.kpi strong{font-size:19px}
+.info{border-radius:13px;padding:12px 13px;font-size:12px;line-height:1.5;margin:12px 0;background:var(--blue);color:#344054}.warn{background:var(--amber)}
+.section{border-top:1px solid var(--line);padding-top:17px;margin-top:17px}.tabs{display:flex;gap:8px;margin:8px 0 16px}.tabbtn{background:#eef2f6;color:#475467}.tabbtn.active{background:var(--primary);color:#fff}.view{display:none}.view.active{display:block}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:1050px}th,td{text-align:right;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}th:first-child,td:first-child{text-align:left}th{background:var(--soft)}tr:last-child td{border-bottom:0}.totalrow{font-weight:800;background:#fafbff}.pos{color:var(--ok);font-weight:800}.neg{color:var(--danger)}
+.month-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:12px}.month{border:1px solid var(--line);border-radius:14px;overflow:hidden}.mhead{display:flex;justify-content:space-between;gap:10px;background:var(--soft);padding:12px 14px;font-size:13px;font-weight:800}.mbody{padding:7px 14px 13px}.line{display:flex;justify-content:space-between;gap:16px;padding:6px 0;border-bottom:1px dashed #edf0f3;font-size:13px}.line:last-child{border-bottom:0}.line.total{font-weight:800;font-size:14px;padding-top:9px}
+.bonus-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.bonus-grid .field{margin:0}.footer-note{font-size:11px;color:var(--muted);line-height:1.45;margin-top:16px}.errorbox{background:#fff1f0;color:#b42318;border:1px solid #fecdca;border-radius:12px;padding:11px 12px;font-size:12px;margin:10px 0}.explain{background:#f8fafc;border:1px solid var(--line);border-radius:13px;padding:13px;margin:10px 0}.explain strong{font-size:13px}.explain p{font-size:12px;color:#475467;line-height:1.55;margin:7px 0 0}.explain .delta{font-weight:800}.explain .down{color:var(--danger)}.explain .up{color:var(--ok)}details{margin-top:14px}summary{cursor:pointer;font-size:13px;font-weight:800}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.month-cards{grid-template-columns:1fr}}@media(max-width:600px){.kpis{grid-template-columns:1fr}.bonus-grid{grid-template-columns:repeat(2,1fr)}.header{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div>
+      <h1>Planejador Anual de Salário</h1>
+      <div class="sub">Projeção mês a mês de folha, férias, 1/3 constitucional, 13º salário, bônus RVV, descontos e dinheiro efetivamente recebido.</div>
+    </div>
+    <span class="badge">PROJEÇÃO ANUAL</span>
+  </div>
+
+  <div class="layout">
+    <section class="card">
+      <h2>Configuração anual</h2>
+      <div class="row">
+        <div class="field"><label>Ano</label><input id="ano" type="number" min="2026" max="2100" value="2026"></div>
+        <div class="field"><label>Salário-base mensal</label><input id="salario" type="number" step="0.01" value="5327.94"></div>
+      </div>
+
+      <h3>Períodos previstos de férias</h3>
+      <div id="vacations"></div>
+      <button class="secondary" onclick="addVacation()" type="button">+ Adicionar período de férias</button>
+      <div class="hint">Se as férias atravessarem dois meses, o recibo líquido completo será considerado como recebimento no mês de início das férias.</div>
+
+      <h3>Bônus RVV por mês</h3>
+      <div class="bonus-grid" id="bonusGrid"></div>
+
+      <h3>Incidências do bônus</h3>
+      <label class="check"><input id="bonusINSS" type="checkbox"> Incide INSS</label>
+      <label class="check"><input id="bonusFGTS" type="checkbox"> Incide FGTS</label>
+      <label class="check"><input id="bonusIRRF" type="checkbox" checked> Incide IRRF</label>
+      <div class="hint">Padrão calibrado: bônus entra no IRRF, mas não entra no INSS nem no FGTS.</div>
+
+      <h3>Pagamento da folha mensal</h3>
+      <div class="field">
+        <label>Quando a folha é recebida?</label>
+        <select id="folhaPagamento">
+          <option value="seguinte" selected>No mês seguinte à competência</option>
+          <option value="mesmo">No mesmo mês da competência</option>
+        </select>
+      </div>
+      <label class="check"><input id="estimarJanAnterior" type="checkbox" checked> Em janeiro, estimar a folha de dezembro do ano anterior</label>
+      <div class="hint">Janeiro considera a competência de dezembro do ano anterior. Férias cadastradas que atingem dezembro são consideradas automaticamente; bônus do ano anterior não é estimado.</div>
+
+      <h3>13º salário</h3>
+      <label class="check"><input id="incluir13" type="checkbox" checked> Incluir 13º salário na projeção</label>
+
+      <div class="field">
+        <label>Forma de pagamento</label>
+        <select id="modo13" onchange="toggle13Mode()">
+          <option value="duas" selected>Duas parcelas</option>
+          <option value="unica">Parcela única em novembro</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>Avos do 13º</label>
+          <input id="avos13" type="number" min="1" max="12" step="1" value="12">
+        </div>
+        <div class="field" id="campo13p1">
+          <label>1ª parcela</label>
+          <select id="mes13p1">
+            <option value="0">Janeiro</option><option value="1">Fevereiro</option><option value="2">Março</option>
+            <option value="3">Abril</option><option value="4">Maio</option><option value="5">Junho</option>
+            <option value="6">Julho</option><option value="7">Agosto</option><option value="8">Setembro</option>
+            <option value="9">Outubro</option><option value="10" selected>Novembro</option><option value="11">Dezembro</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="campo13p2">
+        <label>2ª parcela</label>
+        <select id="mes13p2">
+          <option value="0">Janeiro</option><option value="1">Fevereiro</option><option value="2">Março</option>
+          <option value="3">Abril</option><option value="4">Maio</option><option value="5">Junho</option>
+          <option value="6">Julho</option><option value="7">Agosto</option><option value="8">Setembro</option>
+          <option value="9">Outubro</option><option value="10">Novembro</option><option value="11" selected>Dezembro</option>
+        </select>
+      </div>
+      <div class="hint" id="hint13">Na modalidade em duas parcelas, a 1ª é estimada em 50% do 13º bruto, sem descontos. INSS e IRRF do 13º ficam concentrados na 2ª parcela. Na parcela única, o líquido completo é considerado em novembro.</div>
+
+      <h3>Descontos mensais</h3>
+      <div class="row">
+        <div class="field"><label>Vale alimentação</label><input id="vale" type="number" step="0.01" value="4.50"></div>
+        <div class="field"><label>Odontológico</label><input id="odonto" type="number" step="0.01" value="27.46"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Assistência médica</label><input id="medica" type="number" step="0.01" value="116.66"></div>
+        <div class="field"><label>Outros descontos</label><input id="outros" type="number" step="0.01" value="0"></div>
+      </div>
+      <div class="field"><label>Dependentes para IRRF</label><input id="dependentes" type="number" min="0" step="1" value="0"></div>
+      <label class="check"><input id="melhorDeducao" type="checkbox" checked> Usar dedução de IR mais vantajosa</label>
+      <button class="primary" onclick="calcular()" type="button">Calcular projeção anual</button>
+
+      <div class="info"><strong>Recebimento mensal</strong> = líquido da folha + recibos de férias pagos naquele mês.</div>
+    </section>
+
+    <section class="card"><div id="resultado"></div></section>
+  </div>
+</div>
+
+<script>
+const BRL=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DEP=189.59, SIMP=607.20;
+let vacSeq=0;
+function money(v){return BRL.format(Number(v||0))}
+function num(id){return Number(document.getElementById(id)?.value||0)}
+function round2(v){return Math.round((v+Number.EPSILON)*100)/100}
+function iso(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function parseDate(s){return s?new Date(s+'T12:00:00'):null}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
+function daysInclusive(a,b){return Math.round((b-a)/86400000)+1}
+
+function inss2026(base){
+  base=Math.max(0,Math.min(base,8475.55));
+  const f=[[1621,.075],[2902.84,.09],[4354.27,.12],[8475.55,.14]];
+  let ant=0,t=0;
+  for(const [lim,a] of f){if(base<=ant)break;t+=(Math.min(base,lim)-ant)*a;ant=lim}
+  return round2(t);
+}
+function irTabela(base){
+  if(base<=2428.80)return 0;
+  if(base<=2826.65)return base*.075-182.16;
+  if(base<=3751.05)return base*.15-394.16;
+  if(base<=4664.68)return base*.225-675.49;
+  return base*.275-908.73;
+}
+function irrf2026(rendTrib,deducoesLegais,melhor=true){
+  const ded=melhor?Math.max(deducoesLegais,SIMP):deducoesLegais;
+  const base=Math.max(0,rendTrib-ded);
+  const antes=Math.max(0,irTabela(base));
+  let red=0;
+  if(rendTrib<=5000)red=Math.min(antes,312.89);
+  else if(rendTrib<=7350)red=Math.min(antes,Math.max(0,978.62-.133145*rendTrib));
+  return {valor:round2(Math.max(0,antes-red))};
+}
+function initBonus(){
+  document.getElementById('bonusGrid').innerHTML=MONTHS.map((m,i)=>`
+    <div class="field"><label>${m.slice(0,3)}</label><input id="bonus_${i}" type="number" step="0.01" value="${i===1||i===2?'1065.59':'0'}"></div>`).join('');
+}
+function addVacation(start='2026-02-18',end='2026-03-04',pay=''){
+  const id=++vacSeq, box=document.createElement('div');
+  box.className='vac-card'; box.id='vac_'+id;
+  box.innerHTML=`
+    <div class="vac-head"><span>Período de férias</span><button class="dangerbtn" type="button" onclick="removeVacation(${id})">Remover</button></div>
+    <div class="row">
+      <div class="field"><label>Início</label><input class="vac-start" type="date" value="${start}"></div>
+      <div class="field"><label>Fim</label><input class="vac-end" type="date" value="${end}"></div>
+    </div>`;
+  document.getElementById('vacations').appendChild(box);
+}
+function removeVacation(id){document.getElementById('vac_'+id)?.remove()}
+function getVacations(){
+  return [...document.querySelectorAll('.vac-card')].map((box,idx)=>({
+    index:idx+1,
+    start:parseDate(box.querySelector('.vac-start').value),
+    end:parseDate(box.querySelector('.vac-end').value)
+  })).filter(v=>v.start&&v.end);
+}
+function vacDaysInMonth(v,y,m){
+  const ms=new Date(y,m,1,12), me=new Date(y,m+1,0,12);
+  const a=v.start>ms?v.start:ms, b=v.end<me?v.end:me;
+  if(a>b)return 0;
+  return Math.min(30,daysInclusive(a,b));
+}
+
+
+function toggle13Mode(){
+  const modo=document.getElementById('modo13').value;
+  const duas=modo==='duas';
+  document.getElementById('campo13p1').style.display=duas?'block':'none';
+  document.getElementById('campo13p2').style.display=duas?'block':'none';
+}
+
+
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelector(`[data-view="${id}"]`).classList.add('active');
+}
+
+
+function vacationReceipt(v,sal,dep,melhor){
+  const valorDia=sal/30;
+  const totalDays=daysInclusive(v.start,v.end);
+  const gross=round2(valorDia*totalDays+(valorDia*totalDays)/3);
+  let inssReceipt=0;
+  for(let y=v.start.getFullYear();y<=v.end.getFullYear();y++){
+    for(let m=0;m<12;m++){
+      const d=vacDaysInMonth(v,y,m);
+      if(d>0){
+        const compGross=round2(valorDia*d+(valorDia*d)/3);
+        inssReceipt=round2(inssReceipt+inss2026(compGross));
+      }
+    }
+  }
+  const irVac=irrf2026(gross,round2(inssReceipt+dep*DEP),melhor).valor;
+  return {gross,inss:inssReceipt,irrf:irVac,net:round2(gross-inssReceipt-irVac)};
+}
+
+function calcSingleCompetence(y,m,sal,vacations,bonus,dep,melhor,fixos,bINSS){
+  const valorDia=sal/30;
+  let dFer=0, inssVacAntecipado=0, adiantamentoFerias=0, ferProv=0, tercoProv=0;
+
+  vacations.forEach(v=>{
+    const d=vacDaysInMonth(v,y,m);
+    dFer+=d;
+
+    if(d>0){
+      const compGross=round2(valorDia*d+(valorDia*d)/3);
+      inssVacAntecipado=round2(inssVacAntecipado+inss2026(compGross));
+    }
+
+    if(v.start.getFullYear()===y && v.start.getMonth()===m){
+      const rec=vacationReceipt(v,sal,dep,melhor);
+      adiantamentoFerias=round2(adiantamentoFerias+rec.net);
+
+      const totalDays=daysInclusive(v.start,v.end);
+      const fullFer=round2(valorDia*totalDays);
+      ferProv=round2(ferProv+fullFer);
+      tercoProv=round2(tercoProv+fullFer/3);
+    }
+  });
+
+  dFer=Math.min(30,dFer);
+  const dSal=Math.max(0,30-dFer);
+  const salProp=round2(valorDia*dSal);
+  const fer=round2(valorDia*dFer);
+  const terco=round2(fer/3);
+  const vacGross=round2(fer+terco);
+
+  const baseINSS=round2(salProp+vacGross+(bINSS?bonus:0));
+  const inssTotal=inss2026(baseINSS);
+  const inssFolha=round2(Math.max(0,inssTotal-inssVacAntecipado));
+
+  const rendIR=round2(salProp+bonus);
+  const irFolha=irrf2026(rendIR,round2(inssFolha+dep*DEP),melhor).valor;
+
+  const proventos=round2(salProp+ferProv+tercoProv+bonus);
+  const liquido=round2(proventos-inssFolha-inssVacAntecipado-irFolha-fixos-adiantamentoFerias);
+
+  return {dFer,dSal,salProp,fer,terco,ferProv,tercoProv,inssVacAntecipado,inssFolha,irFolha,adiantamentoFerias,liquido};
+}
+
+
+function normalLiquidForMonth(sal,bonus,dep,melhor,fixos,bINSS,bIR){
+  const baseINSS=round2(sal+(bINSS?bonus:0));
+  const inss=inss2026(baseINSS);
+  const rendIR=round2(sal+(bIR?bonus:0));
+  const ir=irrf2026(rendIR,round2(inss+dep*DEP),melhor).valor;
+  return round2(sal+bonus-inss-ir-fixos);
+}
+
+function explainCompetence(x,normalLiquid){
+  const parts=[];
+
+  if(x.dFer>0){
+    parts.push(`A competência possui ${x.dFer} dia(s) de férias e ${x.dSal} dia(s) considerados como salário.`);
+  }
+
+  if((x.ferProv+x.tercoProv)>0 && x.adiantamentoFerias>0){
+    parts.push(`As férias + 1/3 aparecem como provento nesta competência, mas o líquido do recibo (${money(x.adiantamentoFerias)}) já foi antecipado e por isso retorna como desconto de adiantamento na folha.`);
+  }
+
+  if(x.dFer>0 && (x.ferProv+x.tercoProv)===0){
+    parts.push(`Os dias de férias desta competência já foram pagos no recibo do mês em que as férias começaram. Por isso, aqui não há novo provento de férias; entra apenas o salário proporcional aos dias restantes.`);
+  }
+
+  if(x.inssVacAntecipado>0){
+    parts.push(`${money(x.inssVacAntecipado)} de INSS das férias já foi antecipado no recibo e é considerado no fechamento previdenciário desta competência.`);
+  }
+
+  const diff=round2(x.liquidoFolha-normalLiquid);
+  if(Math.abs(diff)>=0.01){
+    if(diff<0){
+      parts.push(`Comparada a uma folha normal equivalente, esta folha fica ${money(Math.abs(diff))} menor.`);
+    }else{
+      parts.push(`Comparada a uma folha normal equivalente, esta folha fica ${money(diff)} maior.`);
+    }
+  }
+
+  return {text:parts.join(' '),diff};
+}
+
+function calcular(){
+  const year=num('ano'), sal=num('salario'), dep=num('dependentes');
+  const bINSS=document.getElementById('bonusINSS').checked;
+  const bFGTS=document.getElementById('bonusFGTS').checked;
+  const bIR=document.getElementById('bonusIRRF').checked;
+  const melhor=document.getElementById('melhorDeducao').checked;
+  const fixos=round2(num('vale')+num('odonto')+num('medica')+num('outros'));
+  const vacations=getVacations(), valorDia=sal/30;
+
+  const invalid=vacations.filter(v=>v.end<v.start);
+  if(invalid.length){
+    document.getElementById('resultado').innerHTML=`
+      <h2>Verifique os períodos de férias</h2>
+      <div class="errorbox">
+        ${invalid.map(v=>`O período de férias ${v.index} possui data final anterior à data inicial.`).join('<br>')}
+      </div>`;
+    return;
+  }
+
+  let data=Array.from({length:12},(_,m)=>({m,dFer:0,dSal:30,salProp:0,fer:0,terco:0,ferProv:0,tercoProv:0,bonus:num('bonus_'+m),inssVacAntecipado:0,inssFolha:0,irFolha:0,adiantamentoFerias:0,recibosRecebidos:0,decimoTerceiro:0,liquidoFolha:0,totalRecebido:0}));
+
+  vacations.forEach(v=>{for(let m=0;m<12;m++)data[m].dFer+=vacDaysInMonth(v,year,m)});
+  data.forEach(x=>{x.dFer=Math.min(30,x.dFer);x.dSal=Math.max(0,30-x.dFer);x.salProp=round2(valorDia*x.dSal);x.fer=round2(valorDia*x.dFer);x.terco=round2(x.fer/3)});
+
+  // No padrão observado no holerite, todo o valor das férias (inclusive dias do mês seguinte)
+  // aparece como provento na competência em que as férias começam.
+  // No mês seguinte, os dias de férias continuam compondo as bases previdenciárias,
+  // mas NÃO voltam a ser somados como provento.
+  vacations.forEach(v=>{
+    if(v.start.getFullYear()===year){
+      const totalDays=daysInclusive(v.start,v.end);
+      const ferProv=round2(valorDia*totalDays);
+      const tercoProv=round2(ferProv/3);
+      data[v.start.getMonth()].ferProv=round2(data[v.start.getMonth()].ferProv+ferProv);
+      data[v.start.getMonth()].tercoProv=round2(data[v.start.getMonth()].tercoProv+tercoProv);
+    }
+  });
+
+  vacations.forEach(v=>{
+    const totalDays=daysInclusive(v.start,v.end), gross=round2(valorDia*totalDays+(valorDia*totalDays)/3);
+    let inssReceipt=0;
+    for(let y=v.start.getFullYear();y<=v.end.getFullYear();y++){
+      for(let m=0;m<12;m++){
+        const d=vacDaysInMonth(v,y,m);
+        if(d>0){
+          const compGross=round2(valorDia*d+(valorDia*d)/3);
+          const compInss=inss2026(compGross);
+          inssReceipt=round2(inssReceipt+compInss);
+          if(y===year)data[m].inssVacAntecipado=round2(data[m].inssVacAntecipado+compInss);
+        }
+      }
+    }
+    const irVac=irrf2026(gross,round2(inssReceipt+dep*DEP),melhor);
+    const netReceipt=round2(gross-inssReceipt-irVac.valor);
+    if(v.start.getFullYear()===year)data[v.start.getMonth()].recibosRecebidos=round2(data[v.start.getMonth()].recibosRecebidos+netReceipt);
+    if(v.start.getFullYear()===year)data[v.start.getMonth()].adiantamentoFerias=round2(data[v.start.getMonth()].adiantamentoFerias+netReceipt);
+  });
+
+  // 13º salário: tributação separada da folha mensal.
+  let info13={bruto:0,p1:0,p2:0,unica:0,inss:0,irrf:0,modo:'duas'};
+  if(document.getElementById('incluir13').checked){
+    const avos=Math.max(1,Math.min(12,num('avos13')||12));
+    const modo=document.getElementById('modo13').value;
+    const bruto13=round2(sal*(avos/12));
+    const inss13=inss2026(bruto13);
+    const ir13=irrf2026(bruto13,round2(inss13+dep*DEP),melhor).valor;
+
+    if(modo==='unica'){
+      const unica=round2(Math.max(0,bruto13-inss13-ir13));
+      data[10].decimoTerceiro=round2(data[10].decimoTerceiro+unica);
+      info13={bruto:bruto13,p1:0,p2:0,unica,inss:inss13,irrf:ir13,modo:'unica'};
+    }else{
+      const m1=Number(document.getElementById('mes13p1').value);
+      const m2=Number(document.getElementById('mes13p2').value);
+      const p1=round2(bruto13/2);
+      const p2=round2(Math.max(0,bruto13-p1-inss13-ir13));
+      data[m1].decimoTerceiro=round2(data[m1].decimoTerceiro+p1);
+      data[m2].decimoTerceiro=round2(data[m2].decimoTerceiro+p2);
+      info13={bruto:bruto13,p1,p2,unica:0,inss:inss13,irrf:ir13,modo:'duas'};
+    }
+  }
+
+  data.forEach(x=>{
+    const vacGross=round2(x.fer+x.terco);
+    const baseINSS=round2(x.salProp+vacGross+(bINSS?x.bonus:0));
+    const inssTotal=inss2026(baseINSS);
+    x.inssFolha=round2(Math.max(0,inssTotal-x.inssVacAntecipado));
+    const rendIR=round2(x.salProp+(bIR?x.bonus:0));
+    x.irFolha=irrf2026(rendIR,round2(x.inssFolha+dep*DEP),melhor).valor;
+    const proventos=round2(x.salProp+x.ferProv+x.tercoProv+x.bonus);
+    x.liquidoFolha=round2(proventos-x.inssFolha-x.inssVacAntecipado-x.irFolha-fixos-x.adiantamentoFerias);
+    x.totalRecebido=round2(x.liquidoFolha+x.recibosRecebidos+x.decimoTerceiro);
+  });
+
+
+  // Explicações automáticas das competências cuja folha difere de um mês normal.
+  data.forEach(x=>{
+    x.normalLiquid=normalLiquidForMonth(sal,x.bonus,dep,melhor,fixos,bINSS,bIR);
+    x.explanation=explainCompetence(x,x.normalLiquid);
+  });
+
+  // Fluxo de recebimento: folha pode ser deslocada para o mês seguinte.
+  const modoFolha=document.getElementById('folhaPagamento').value;
+  let receb=Array.from({length:12},(_,m)=>({m,folha:0,recibo:0,decimo:0,total:0,origemFolha:''}));
+
+  // Recibos de férias e 13º já estão posicionados pelo mês efetivo de recebimento.
+  data.forEach(x=>{
+    receb[x.m].recibo=round2(receb[x.m].recibo+x.recibosRecebidos);
+    receb[x.m].decimo=round2(receb[x.m].decimo+x.decimoTerceiro);
+  });
+
+  if(modoFolha==='mesmo'){
+    data.forEach(x=>{
+      receb[x.m].folha=round2(receb[x.m].folha+x.liquidoFolha);
+      receb[x.m].origemFolha=`Competência ${MONTHS[x.m]}`;
+    });
+  }else{
+    // Competências Jan-Nov entram de Fev-Dez.
+    for(let m=0;m<11;m++){
+      receb[m+1].folha=round2(receb[m+1].folha+data[m].liquidoFolha);
+      receb[m+1].origemFolha=`Competência ${MONTHS[m]}`;
+    }
+
+    // Janeiro recebe a competência dezembro do ano anterior recalculada,
+    // inclusive com férias que começam em dezembro e atravessam o ano.
+    if(document.getElementById('estimarJanAnterior').checked){
+      const prevDec=calcSingleCompetence(
+        year-1, 11, sal, vacations, 0, dep, melhor, fixos, bINSS
+      );
+      receb[0].folha=round2(receb[0].folha+prevDec.liquido);
+      receb[0].origemFolha=`Competência Dezembro/${year-1}`;
+      receb[0].prevDec=prevDec;
+    }
+
+    // Dezembro do ano selecionado será recebido em janeiro do ano seguinte e fica indicado à parte.
+  }
+
+  receb.forEach(x=>x.total=round2(x.folha+x.recibo+x.decimo));
+
+  const sum=k=>round2(data.reduce((a,x)=>a+x[k],0));
+  const sumRec=k=>round2(receb.reduce((a,x)=>a+x[k],0));
+
+  const totalCompetencia=round2(sum('liquidoFolha')+sum('recibosRecebidos')+sum('decimoTerceiro'));
+  const totalRecebidoAno=sumRec('total');
+  const totalBonus=sum('bonus');
+  const totalRecibos=sum('recibosRecebidos');
+  const total13=sum('decimoTerceiro');
+  const totalFolha=sum('liquidoFolha');
+  const avgReceb=round2(totalRecebidoAno/12);
+
+  const competenceRows=data.map(x=>`
+    <tr>
+      <td>${MONTHS[x.m]}</td>
+      <td>${money(x.salProp)}</td>
+      <td>${money(x.ferProv+x.tercoProv)}</td>
+      <td>${money(x.bonus)}</td>
+      <td class="neg">-${money(x.inssFolha+x.inssVacAntecipado)}</td>
+      <td class="neg">-${money(x.irFolha)}</td>
+      <td class="neg">-${money(fixos)}</td>
+      <td class="neg">${x.adiantamentoFerias?'- '+money(x.adiantamentoFerias):money(0)}</td>
+      <td class="pos">${money(x.liquidoFolha)}</td>
+      <td class="pos">${money(x.recibosRecebidos)}</td>
+      <td class="pos">${money(x.decimoTerceiro)}</td>
+      <td class="pos">${money(x.totalRecebido)}</td>
+    </tr>`).join('');
+
+  const recebRows=receb.map(x=>`
+    <tr>
+      <td>${MONTHS[x.m]}</td>
+      <td>${x.origemFolha || '—'}</td>
+      <td class="pos">${money(x.folha)}</td>
+      <td class="pos">${money(x.recibo)}</td>
+      <td class="pos">${money(x.decimo)}</td>
+      <td class="pos">${money(x.total)}</td>
+    </tr>`).join('');
+
+  const cardRows=data.map(x=>`
+    <div class="month">
+      <div class="mhead"><span>${MONTHS[x.m]}</span><span>${x.dSal} dias salário · ${x.dFer} férias</span></div>
+      <div class="mbody">
+        <div class="line"><span>Salário proporcional</span><strong>${money(x.salProp)}</strong></div>
+        ${(x.ferProv+x.tercoProv)>0?`<div class="line"><span>Férias + 1/3 (provento)</span><strong>${money(x.ferProv+x.tercoProv)}</strong></div>`:''}
+        ${x.dFer>0 && (x.ferProv+x.tercoProv)===0?`<div class="line muted"><span>Férias já pagas — base INSS/FGTS</span><strong>${money(x.fer+x.terco)}</strong></div>`:''}
+        ${x.bonus?`<div class="line"><span>Bônus RVV</span><strong>${money(x.bonus)}</strong></div>`:''}
+        <div class="line neg"><span>INSS</span><strong>- ${money(x.inssFolha+x.inssVacAntecipado)}</strong></div>
+        <div class="line neg"><span>IRRF</span><strong>- ${money(x.irFolha)}</strong></div>
+        ${x.adiantamentoFerias?`<div class="line neg"><span>Adiantamento férias</span><strong>- ${money(x.adiantamentoFerias)}</strong></div>`:''}
+        <div class="line total"><span>Líquido da folha da competência</span><strong class="pos">${money(x.liquidoFolha)}</strong></div>
+        ${(x.dFer>0 || x.adiantamentoFerias>0) && x.explanation?.text
+          ? `<div class="info warn"><strong>Por que mudou?</strong><br>${x.explanation.text}</div>`
+          : ''}
+      </div>
+    </div>`).join('');
+
+  let janPrevNote='';
+  if(modoFolha==='seguinte' && receb[0].prevDec){
+    const p=receb[0].prevDec;
+    janPrevNote=`
+      <div class="info">
+        <strong>Janeiro/${year}</strong> recebe a competência Dezembro/${year-1}.
+        ${p.dFer>0
+          ? `Foram considerados <strong>${p.dFer} dias de férias</strong> em dezembro, salário proporcional de <strong>${money(p.salProp)}</strong>, férias + 1/3 lançadas como provento de <strong>${money(p.ferProv+p.tercoProv)}</strong> e adiantamento de férias de <strong>${money(p.adiantamentoFerias)}</strong>.`
+          : `Não há férias cadastradas impactando dezembro/${year-1}.`}
+      </div>`;
+  }
+
+  const dezProx = modoFolha==='seguinte'
+    ? `${janPrevNote}<div class="info warn"><strong>Janeiro/${year+1}:</strong> a folha líquida da competência Dezembro/${year} está estimada em <strong>${money(data[11].liquidoFolha)}</strong> e não entra no total de recebimentos de ${year}.</div>`
+    : '';
+
+  document.getElementById('resultado').innerHTML=`
+    <h2>Planejamento anual — ${year}</h2>
+
+    <div class="kpis">
+      <div class="kpi"><small>Recebido no ano</small><strong>${money(totalRecebidoAno)}</strong></div>
+      <div class="kpi"><small>Média mensal recebida</small><strong>${money(avgReceb)}</strong></div>
+      <div class="kpi"><small>Recibos de férias</small><strong>${money(totalRecibos)}</strong></div>
+      <div class="kpi"><small>13º líquido</small><strong>${money(total13)}</strong></div>
+      <div class="kpi"><small>Bônus previstos</small><strong>${money(totalBonus)}</strong></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tabbtn active" data-view="viewReceb" onclick="showView('viewReceb')" type="button">Por mês de recebimento</button>
+      <button class="tabbtn" data-view="viewComp" onclick="showView('viewComp')" type="button">Por competência</button>
+    </div>
+
+    <div id="viewReceb" class="view active">
+      <div class="section" style="border-top:0;margin-top:0;padding-top:0">
+        <h2>Previsão de entradas na conta</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Mês do recebimento</th><th>Origem da folha</th><th>Folha líquida</th><th>Recibo férias</th><th>13º</th><th>Total recebido</th></tr>
+            </thead>
+            <tbody>
+              ${recebRows}
+              <tr class="totalrow">
+                <td>TOTAL ${year}</td><td></td>
+                <td>${money(sumRec('folha'))}</td>
+                <td>${money(sumRec('recibo'))}</td>
+                <td>${money(sumRec('decimo'))}</td>
+                <td class="pos">${money(totalRecebidoAno)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        ${dezProx}
+      </div>
+    </div>
+
+    <div id="viewComp" class="view">
+      <div class="section" style="border-top:0;margin-top:0;padding-top:0">
+        <h2>Formação da folha por competência</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Competência</th><th>Salário</th><th>Férias + 1/3</th><th>Bônus</th>
+                <th>INSS</th><th>IRRF</th><th>Outros</th><th>Adiant. férias</th>
+                <th>Líquido folha</th><th>Recibo férias</th><th>13º</th><th>Total associado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${competenceRows}
+              <tr class="totalrow">
+                <td>TOTAL</td>
+                <td>${money(sum('salProp'))}</td>
+                <td>${money(round2(sum('ferProv')+sum('tercoProv')))}</td>
+                <td>${money(totalBonus)}</td>
+                <td>-${money(round2(sum('inssFolha')+sum('inssVacAntecipado')))}</td>
+                <td>-${money(sum('irFolha'))}</td>
+                <td>-${money(fixos*12)}</td>
+                <td>-${money(sum('adiantamentoFerias'))}</td>
+                <td>${money(totalFolha)}</td>
+                <td>${money(totalRecibos)}</td>
+                <td>${money(total13)}</td>
+                <td class="pos">${money(totalCompetencia)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <details>
+        <summary>Ver detalhamento das competências</summary>
+        <div class="month-cards">${cardRows}</div>
+      </details>
+    </div>
+
+    <div class="section">
+      <h2>Por que algumas folhas não vêm com o líquido integral?</h2>
+      <div class="info">
+        A referência abaixo é a folha líquida que seria esperada em um mês normal, mantendo o mesmo salário, bônus e descontos daquele mês.
+        A explicação aparece somente quando férias ou adiantamentos alteram esse valor.
+      </div>
+
+      ${data.filter(x=>x.explanation.text && (x.dFer>0 || x.adiantamentoFerias>0)).map(x=>`
+        <div class="explain">
+          <strong>Competência ${MONTHS[x.m]}</strong>
+          <p>
+            Folha normal de referência: <strong>${money(x.normalLiquid)}</strong> ·
+            Folha calculada: <strong>${money(x.liquidoFolha)}</strong> ·
+            Diferença:
+            <span class="delta ${x.explanation.diff<0?'down':'up'}">
+              ${x.explanation.diff<0?'- ':'+ '}${money(Math.abs(x.explanation.diff))}
+            </span>
+          </p>
+          <p>${x.explanation.text}</p>
+        </div>
+      `).join('') || '<div class="info">Nenhuma competência do período possui redução de folha causada por férias ou adiantamentos.</div>'}
+    </div>
+
+    <div class="section">
+      <h2>13º salário</h2>
+      <div class="line"><span>Forma de pagamento</span><strong>${info13.modo==='unica'?'Parcela única em novembro':'Duas parcelas'}</strong></div>
+      <div class="line"><span>13º bruto</span><strong>${money(info13.bruto)}</strong></div>
+      ${info13.modo==='duas'?`<div class="line"><span>1ª parcela líquida</span><strong>${money(info13.p1)}</strong></div>`:''}
+      <div class="line neg"><span>INSS do 13º</span><strong>- ${money(info13.inss)}</strong></div>
+      <div class="line neg"><span>IRRF do 13º</span><strong>- ${money(info13.irrf)}</strong></div>
+      ${info13.modo==='duas'
+        ? `<div class="line"><span>2ª parcela líquida</span><strong>${money(info13.p2)}</strong></div>`
+        : `<div class="line"><span>Parcela única líquida — novembro</span><strong>${money(info13.unica)}</strong></div>`}
+      <div class="line total"><span>Total líquido do 13º</span><strong class="pos">${money(total13)}</strong></div>
+    </div>
+
+    <div class="info warn">
+      <strong>Visão de recebimento:</strong> a folha mensal é deslocada conforme a configuração de pagamento.
+      Quando as férias atravessam dois meses, o valor integral das férias + 1/3 é lançado como provento na competência de início.
+      No mês seguinte, os dias restantes afetam as bases previdenciárias, mas não são pagos novamente como provento.
+    </div>
+
+    <div class="footer-note">
+      Estimativa para planejamento pessoal. O holerite real pode variar por arredondamentos, eventos retroativos, política de folha ou outras rubricas.
+    </div>`;
+
+}
+
+initBonus();
+addVacation();
+toggle13Mode();
+calcular();
+</script>
+</body>
+</html>

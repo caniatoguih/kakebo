@@ -26,7 +26,7 @@ export function calculateBalanceImpactCents(input: BalanceImpactInput): number {
   if (input.transactionType === 'Transferencia') {
     const isOutgoing = input.description?.includes('[Saída]') ?? false;
     if (isOutgoing) return isCreditCard ? valueCents : -valueCents;
-    return isCreditCard ? -valueCents : valueCents;
+    return isCreditCard ? -valueCents : valueCents; 
   }
 
   return 0;

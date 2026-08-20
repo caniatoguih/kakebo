@@ -58,6 +58,66 @@ export const createCategoriaSchema = z.object({
 export const createSubcategoriaSchema = z.object({ params: idParams, body: z.object({ nome }) });
 export const subcategoriaIdSchema = z.object({ params: z.object({ subId: uuid }) });
 
+const salaryVacation = z.object({
+  inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+}).refine((period) => period.fim >= period.inicio, {
+  path: ['fim'],
+  message: 'O fim das férias não pode ser anterior ao início.',
+});
+const salaryBonus = z.object({ mes, valor, incide_inss: z.boolean().optional(), incide_irrf: z.boolean().optional() });
+const salaryBody = z.object({
+  empresa: nome,
+  ano: z.coerce.number().int().min(2026).max(2100),
+  salario_base: valor,
+  conta_id: uuid,
+  subcategoria_id: uuid,
+  pagamento_folha: z.enum(['mesmo', 'seguinte']).default('seguinte'),
+  estimar_dezembro_anterior: z.boolean().default(true),
+  incluir_decimo_terceiro: z.boolean().default(true),
+  avos_decimo_terceiro: z.coerce.number().int().min(1).max(12).default(12),
+  modo_decimo_terceiro: z.enum(['duas', 'unica']).default('duas'),
+  mes_primeira_parcela_13: mes.default(11),
+  mes_segunda_parcela_13: mes.default(12),
+  descontos_mensais: valor.default(0),
+  vale_alimentacao: valor.default(0),
+  odontologico: valor.default(0),
+  assistencia_medica: valor.default(0),
+  outros_descontos: valor.default(0),
+  dependentes: z.coerce.number().int().min(0).max(99).default(0),
+  melhor_deducao_irrf: z.boolean().default(true),
+  ferias: z.array(salaryVacation).max(20).default([]),
+  bonus: z.array(salaryBonus).max(12).default([]),
+}).superRefine((data, ctx) => {
+  const periods = [...data.ferias].sort((a, b) => a.inicio.localeCompare(b.inicio));
+  for (let index = 1; index < periods.length; index++) {
+    if (periods[index].inicio <= periods[index - 1].fim) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ferias'],
+        message: 'Os períodos de férias não podem se sobrepor.',
+      });
+      break;
+    }
+  }
+});
+export const createSalaryPlanningSchema = z.object({ body: salaryBody });
+export const updateSalaryPlanningSchema = z.object({ params: idParams, body: salaryBody });
+export const salaryPlanningIdSchema = z.object({ params: idParams });
+const salaryCompetence = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+const launchSalaryPlanningBody = z.object({
+  competencia_inicial: salaryCompetence.optional(),
+  competencia_final: salaryCompetence.optional(),
+  dia_lancamento: z.coerce.number().int().min(1).max(31).default(15),
+}).refine((data) => !data.competencia_inicial || !data.competencia_final || data.competencia_inicial <= data.competencia_final, {
+  path: ['competencia_final'],
+  message: 'O mês final deve ser igual ou posterior ao mês inicial.',
+});
+export const launchSalaryPlanningSchema = z.object({
+  params: idParams,
+  body: launchSalaryPlanningBody.default({}),
+});
+
 const budgetItem = z.object({ subcategoria_id: uuid, mes, ano, valor_orcado: valor });
 export const listOrcamentoSchema = z.object({ query: z.object({ mes, ano }) });
 export const upsertOrcamentoSchema = z.object({ body: budgetItem });

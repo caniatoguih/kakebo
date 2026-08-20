@@ -13,6 +13,7 @@ import { renderMetrics } from '../observability/metrics';
 import auditoriaRoutes from './auditoria.routes';
 import recorrenciaRoutes from './recorrencia.routes';
 import notificacaoRoutes from './notificacao.routes';
+import planejamentoSalarialRoutes from './planejamentoSalarial.routes';
 
 const routes = Router();
 
@@ -28,6 +29,7 @@ routes.use('/user/vehicles', veiculoUsuarioRoutes);
 routes.use('/auditoria', auditoriaRoutes);
 routes.use('/recorrencias', recorrenciaRoutes);
 routes.use('/notificacoes', notificacaoRoutes);
+routes.use('/planejamento-salarial', planejamentoSalarialRoutes);
 
 // Rota de health check
 routes.get('/health', async (_req, res) => {

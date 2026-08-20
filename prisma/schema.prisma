@@ -67,6 +67,7 @@ model Usuario {
   fuel_budget_allocations FuelScenarioBudgetAllocation[]
   fuel_cashflow_forecasts FuelScenarioCashflowForecast[]
   fuel_prices            FuelPrice[]
+  planejamentos_salariais PlanejamentoSalarial[]
 
   @@map("usuarios")
 }
@@ -84,6 +85,7 @@ model ContaBancaria {
   cartoes_pagamento CartaoCreditoDetalhe[] @relation("ContaPagamentoPadrao")
   transacoes_origem Transacao[]            @relation("ContaOrigem")
   faturas_cartao    FaturaCartao[]
+  planejamentos_salariais PlanejamentoSalarial[]
 
   @@index([usuario_id, tipo])
   @@index([usuario_id, nome])
@@ -128,6 +130,7 @@ model Subcategoria {
   transacoes     Transacao[]
   fuel_scenarios FuelScenario[]
   fuel_budget_allocations FuelScenarioBudgetAllocation[]
+  planejamentos_salariais PlanejamentoSalarial[]
 
   @@index([categoria_id])
   @@map("subcategorias")
@@ -293,6 +296,7 @@ model Transacao {
   pagamento_fatura_saida   PagamentoFatura?    @relation("PagamentoFaturaSaida")
   pagamento_fatura_entrada PagamentoFatura?    @relation("PagamentoFaturaEntrada")
   fuel_cashflow_forecast   FuelScenarioCashflowForecast?
+  planejamento_salarial_lancamento PlanejamentoSalarialLancamento?
 
   @@index([fatura_id])
   @@index([transferencia_grupo_id])
@@ -301,6 +305,90 @@ model Transacao {
   @@index([usuario_id, status, data_transacao])
   @@index([transacao_pai_id])
   @@map("transacoes")
+}
+
+model PlanejamentoSalarial {
+  id                         String   @id @default(uuid())
+  usuario_id                 String
+  empresa                    String
+  ano                        Int
+  salario_base               Decimal  @db.Decimal(12, 2)
+  conta_id                   String
+  subcategoria_id            String
+  pagamento_folha            String   @default("seguinte")
+  estimar_dezembro_anterior  Boolean  @default(true)
+  incluir_decimo_terceiro    Boolean  @default(true)
+  avos_decimo_terceiro       Int      @default(12)
+  modo_decimo_terceiro       String   @default("duas")
+  mes_primeira_parcela_13    Int      @default(11)
+  mes_segunda_parcela_13     Int      @default(12)
+  descontos_mensais          Decimal  @default(0) @db.Decimal(12, 2)
+  vale_alimentacao           Decimal  @default(0) @db.Decimal(12, 2)
+  odontologico               Decimal  @default(0) @db.Decimal(12, 2)
+  assistencia_medica         Decimal  @default(0) @db.Decimal(12, 2)
+  outros_descontos           Decimal  @default(0) @db.Decimal(12, 2)
+  dependentes                Int      @default(0)
+  melhor_deducao_irrf        Boolean  @default(true)
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  usuario       Usuario                         @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  conta         ContaBancaria                   @relation(fields: [conta_id], references: [id], onDelete: Cascade)
+  subcategoria  Subcategoria                    @relation(fields: [subcategoria_id], references: [id], onDelete: Restrict)
+  ferias        PlanejamentoSalarialFerias[]
+  bonus         PlanejamentoSalarialBonus[]
+  lancamentos   PlanejamentoSalarialLancamento[]
+
+  @@index([usuario_id, ano])
+  @@map("planejamentos_salariais")
+}
+
+model PlanejamentoSalarialFerias {
+  id                  String   @id @default(uuid())
+  planejamento_id     String
+  inicio              DateTime
+  fim                 DateTime
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  planejamento PlanejamentoSalarial @relation(fields: [planejamento_id], references: [id], onDelete: Cascade)
+
+  @@index([planejamento_id, inicio])
+  @@map("planejamentos_salariais_ferias")
+}
+
+model PlanejamentoSalarialBonus {
+  id                  String   @id @default(uuid())
+  planejamento_id     String
+  mes                 Int
+  valor               Decimal  @db.Decimal(12, 2)
+  incide_inss         Boolean  @default(false)
+  incide_irrf         Boolean  @default(true)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  planejamento PlanejamentoSalarial @relation(fields: [planejamento_id], references: [id], onDelete: Cascade)
+
+  @@unique([planejamento_id, mes])
+  @@map("planejamentos_salariais_bonus")
+}
+
+model PlanejamentoSalarialLancamento {
+  id              String   @id @default(uuid())
+  planejamento_id String
+  transacao_id    String   @unique
+  competencia     String
+  tipo_evento     String
+  valor           Decimal  @db.Decimal(12, 2)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  planejamento PlanejamentoSalarial @relation(fields: [planejamento_id], references: [id], onDelete: Cascade)
+  transacao    Transacao             @relation(fields: [transacao_id], references: [id], onDelete: Cascade)
+
+  @@unique([planejamento_id, competencia, tipo_evento], map: "psl_lancamento_competencia_evento_key")
+  @@index([planejamento_id, competencia], map: "psl_lancamento_competencia_idx")
+  @@map("planejamentos_salariais_lancamentos")
 }
 
 model FaturaCartao {
