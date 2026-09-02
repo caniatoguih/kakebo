@@ -33,8 +33,15 @@ export class TransacaoController {
 
   pagarFatura = async (req: Request, res: Response) => {
     const usuario_id = req.usuario_id!;
-    const result = await this.transacaoService.pagarFatura(usuario_id, req.body);
-    return res.status(201).json(result);
+    try {
+      const result = await this.transacaoService.pagarFatura(usuario_id, req.body);
+      return res.status(201).json(result);
+    } catch (error: any) {
+      // Erros de regra de negócio (fatura já paga, conta inválida etc.)
+      // devem ser apresentados ao usuário como erro de requisição, e não
+      // como falha interna do servidor.
+      return res.status(400).json({ message: error?.message || 'Não foi possível registrar o pagamento da fatura.' });
+    }
   };
 
   toggleStatus = async (req: Request, res: Response) => {

@@ -353,6 +353,8 @@ export class TransacaoService {
 
     const paymentDate = new Date(input.data_pagamento);
     const paymentCents = toCents(input.valor);
+    if (Number.isNaN(paymentDate.getTime())) throw new Error('Data de pagamento inválida.');
+    if (paymentCents <= 0) throw new Error('O valor do pagamento deve ser maior que zero.');
 
     return prisma.$transaction(async (tx) => {
       let invoice = input.fatura_id
@@ -366,6 +368,10 @@ export class TransacaoService {
             },
             orderBy: { data_fechamento: 'desc' },
           });
+
+      if (input.fatura_id && !invoice) {
+        throw new Error('Fatura não encontrada para este cartão.');
+      }
 
       if (!invoice) {
         const cycle = getLastClosedBillingCycle(
@@ -393,6 +399,10 @@ export class TransacaoService {
         if (purchases.length > 0) await tx.transacao.updateMany({
           where: { id: { in: purchases.map((transaction) => transaction.id) } }, data: { fatura_id: invoice.id },
         });
+      }
+
+      if (invoice.status === 'Aberta') {
+        throw new Error('A fatura ainda está aberta e não pode ser paga.');
       }
 
       const outstandingCents = toCents(invoice.total) - toCents(invoice.total_pago);
