@@ -7,7 +7,7 @@ import { calculateBalanceImpactCents } from '../domain/finance/balanceImpact';
 import { distributeCents, fromCents, toCents } from '../domain/finance/money';
 import { addMonthsClamped } from '../domain/finance/monthlyDate';
 import { InvoiceService } from './InvoiceService';
-import { getLastClosedBillingCycle, isLegacyInvoicePayment } from '../domain/billing/billingCycle';
+import { getBillingCycleForDate, getLastClosedBillingCycle, isLegacyInvoicePayment } from '../domain/billing/billingCycle';
 import { recordFinancialAudit } from './AuditService';
 
 function nativeDifferenceInDays(d1: Date, d2: Date): number {
@@ -28,6 +28,17 @@ function isTypeCompatible(dbTipo: string, dbDescricao: string, ofxTipo: 'Despesa
   }
   
   return false;
+}
+
+function legacyPaymentCompetence(dateInput: Date, closingDay: number): string {
+  const date = new Date(dateInput);
+  let year = date.getUTCFullYear();
+  let month = date.getUTCMonth();
+  if (date.getUTCDate() < closingDay) {
+    month -= 1;
+    if (month < 0) { month = 11; year -= 1; }
+  }
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
 }
 
 export class TransacaoService {
@@ -415,7 +426,40 @@ export class TransacaoService {
         });
       }
 
-      const outstandingCents = toCents(invoice.total) - toCents(invoice.total_pago);
+      // O total exibido na tela também inclui lançamentos legados, criados
+      // antes do vínculo explícito com faturas. Recalcular aqui evita que o
+      // backend compare o pagamento com um total defasado em faturas antigas.
+      const linkedTransactions = await tx.transacao.findMany({
+        where: { fatura_id: invoice.id },
+      });
+      const legacyTransactions = await tx.transacao.findMany({
+        where: { conta_id: cartao.id, usuario_id: usuarioId, fatura_id: null },
+      });
+      let totalCents = linkedTransactions.reduce((sum, transaction) => sum + calculateBalanceImpactCents({
+        accountType: 'CartaoCredito', transactionType: transaction.tipo,
+        status: transaction.status, description: transaction.descricao, value: transaction.valor,
+      }), 0);
+      let paidCents = toCents(invoice.total_pago);
+      for (const transaction of legacyTransactions) {
+        if (isLegacyInvoicePayment(transaction.descricao)) {
+          if (legacyPaymentCompetence(transaction.data_transacao, cartao.cartao_detalhe!.dia_fechamento) === invoice.competencia) {
+            paidCents += toCents(transaction.valor);
+          }
+          continue;
+        }
+        const cycle = getBillingCycleForDate(
+          transaction.data_transacao,
+          cartao.cartao_detalhe!.dia_fechamento,
+          cartao.cartao_detalhe!.dia_vencimento,
+        );
+        if (cycle.competence === invoice.competencia) {
+          totalCents += calculateBalanceImpactCents({
+            accountType: 'CartaoCredito', transactionType: transaction.tipo,
+            status: transaction.status, description: transaction.descricao, value: transaction.valor,
+          });
+        }
+      }
+      const outstandingCents = totalCents - paidCents;
       if (outstandingCents <= 0) throw new Error('Esta fatura já está paga.');
       if (paymentCents > outstandingCents) throw new Error('O pagamento não pode ser maior que o saldo da fatura.');
 
