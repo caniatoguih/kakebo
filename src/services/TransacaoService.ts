@@ -401,8 +401,18 @@ export class TransacaoService {
         });
       }
 
-      if (invoice.status === 'Aberta') {
+      // O status pode ficar desatualizado quando a fatura foi criada antes
+      // da virada do fechamento. A data persistida é a fonte de verdade:
+      // uma fatura já fechada pode ser paga mesmo que ainda esteja marcada
+      // como Aberta.
+      if (invoice.data_fechamento > paymentDate) {
         throw new Error('A fatura ainda está aberta e não pode ser paga.');
+      }
+      if (invoice.status === 'Aberta') {
+        invoice = await tx.faturaCartao.update({
+          where: { id: invoice.id },
+          data: { status: 'Fechada' },
+        });
       }
 
       const outstandingCents = toCents(invoice.total) - toCents(invoice.total_pago);
