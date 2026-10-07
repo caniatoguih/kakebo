@@ -459,4 +459,49 @@ describeDatabase('API com PostgreSQL isolado', () => {
       vi.useRealTimers();
     }
   });
+  it('reconcilia o realizado do Itaú sem descontar compras de cartões associados', async () => {
+    const agent = request.agent(app);
+    const login = await agent.post('/api/auth/login').send({ email, senha: 'Integration!2026' }).expect(200);
+    const csrf = csrfFrom(login);
+    const account = await agent.post('/api/contas').set('X-CSRF-Token', csrf).send({
+      nome: 'Itaú conciliação DFC', tipo: 'Corrente', saldo_inicial: 400,
+    }).expect(201);
+    await agent.post('/api/transacoes').set('X-CSRF-Token', csrf).send({
+      conta_id: account.body.id, descricao: 'Débito realizado', valor: 80.70, tipo: 'Despesa',
+      data_transacao: '2026-10-01T12:00:00Z', status: 'Pago', total_parcelas: 1,
+    }).expect(201);
+    const card = await agent.post('/api/contas').set('X-CSRF-Token', csrf).send({
+      nome: 'Cartão associado ao Itaú', tipo: 'CartaoCredito', saldo_inicial: 0,
+      limite_total: 1000, dia_fechamento: 26, dia_vencimento: 7, conta_pagamento_padrao_id: account.body.id,
+    }).expect(201);
+    // A seleção da conta não deve puxar estes dois lançamentos de outra conta:
+    // quatro centavos de setembro mais um de outubro reproduzem a diferença.
+    await prisma.transacao.createMany({ data: [
+      { valor: 0.04, data_transacao: new Date('2026-08-06T12:00:00Z') },
+      { valor: 0.01, data_transacao: new Date('2026-09-06T12:00:00Z') },
+    ].map((transaction) => ({
+      ...transaction, usuario_id: card.body.usuario_id, conta_id: card.body.id,
+      descricao: 'Compra em outra conta', tipo: 'Despesa' as const, status: 'Pago' as const,
+    })) });
+    const report = await agent.get('/api/relatorios/fluxo-contabil').query({
+      inicio: '2026-10', fim: '2026-10', status: 'Pago', conta_ids: account.body.id,
+    }).expect(200);
+    expect(report.body.saldo_anterior['2026-10']).toBe(400);
+    expect(report.body.total_saidas['2026-10']).toBe(80.70);
+    expect(report.body.saldo_acumulado['2026-10']).toBe(319.30);
+    const storedAccount = await prisma.contaBancaria.findUniqueOrThrow({ where: { id: account.body.id } });
+    expect(Number(storedAccount.saldo_atual)).toBe(319.30);
+    expect(report.body.saidas.some((category: { categoria_nome: string }) => category.categoria_nome.startsWith('Fatura '))).toBe(false);
+    const nextYear = await agent.get('/api/relatorios/fluxo-contabil').query({
+      inicio: '2027-01', fim: '2027-01', status: 'Pago', conta_ids: account.body.id,
+    }).expect(200);
+    expect(nextYear.body.saldo_anterior['2027-01']).toBe(319.30);
+    expect(nextYear.body.saldo_acumulado['2027-01']).toBe(319.30);
+    const projected = await agent.get('/api/relatorios/fluxo-contabil').query({
+      inicio: '2026-10', fim: '2026-10', status: 'Ambos', conta_ids: account.body.id,
+    }).expect(200);
+    expect(projected.body.saidas.find((category: { categoria_nome: string }) =>
+      category.categoria_nome === 'Fatura Cartão associado ao Itaú',
+    ).valores['2026-10']).toBe(0.01);
+  });
 });

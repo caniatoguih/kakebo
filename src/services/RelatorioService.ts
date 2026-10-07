@@ -3,6 +3,7 @@ import { TransacaoRepository } from '../repositories/TransacaoRepository';
 import { PilarKakebo } from '../domain/enums/PilarKakebo';
 import prisma from '../lib/prisma';
 import { getCashFlowMonthForCardTransaction } from '../domain/billing/billingCycle';
+import { fromCents, toCents } from '../domain/finance/money';
 
 function getMonthsRange(inicioStr: string, fimStr: string): string[] {
   const months: string[] = [];
@@ -280,7 +281,7 @@ export class RelatorioService {
         ...(contaIdsFilter?.length ? { id: { in: contaIdsFilter } } : {})
       }
     });
-    const saldoInicialAbstrato = contas.reduce((sum: number, c: any) => sum + Number(c.saldo_inicial), 0);
+    const saldoInicialAbstrato = contas.reduce((sum: number, c: any) => sum + toCents(c.saldo_inicial), 0);
 
     const statusQuery = statusFilter === 'Ambos'
       ? { in: ['Pago', 'Pendente'] }
@@ -294,7 +295,11 @@ export class RelatorioService {
         usuario_id,
         status: statusQuery,
         tipo: { in: ['Receita', 'Despesa', 'Transferencia'] },
-        ...(contaIdsFilter?.length ? {
+        // No realizado, reconciliar somente as contas selecionadas. Compras
+        // de cartões associados são projeções de pagamento, não débitos da conta.
+        ...(contaIdsFilter?.length ? statusFilter === 'Pago' ? {
+          conta_id: { in: contaIdsFilter },
+        } : {
           OR: [
             { conta_id: { in: contaIdsFilter } },
             {
@@ -346,7 +351,7 @@ export class RelatorioService {
       }
 
       if (mesStr < inicioStr) {
-        const val = Number(t.valor);
+        const val = toCents(t.valor);
         if (t.tipo === 'Receita') {
           saldoAcumulado += val;
         } else if (t.tipo === 'Despesa') {
@@ -385,7 +390,7 @@ export class RelatorioService {
     // Processar transações do período
     for (const t of transacoesNoPeriodo) {
       const mStr = t.mesStr;
-      const valor = Number(t.valor);
+      const valor = toCents(t.valor);
       
       let catNome = t.subcategoria?.categoria.nome ?? 'Sem Categoria';
       let subCatNome = t.subcategoria?.nome ?? 'Sem Subcategoria';
@@ -438,16 +443,19 @@ export class RelatorioService {
       saldoAcumuladoPorMes[m] = runningBalance;
     }
 
+    // Todos os cálculos acima são feitos em centavos; converter só na resposta.
+    const formatarValores = (valores: Record<string, number>): Record<string, number> =>
+      Object.fromEntries(Object.entries(valores).map(([mes, valor]) => [mes, fromCents(valor)]));
     // Converter Mapas para Array JSON ordenado por nome de categoria
     const formatarCategorias = (map: typeof entradasCategorias) => {
       return Array.from(map.entries())
         .map(([categoria_nome, catData]) => ({
           categoria_nome,
-          valores: catData.valores,
+          valores: formatarValores(catData.valores),
           subcategorias: Array.from(catData.subcategorias.entries())
             .map(([subcategoria_nome, valores]) => ({
               subcategoria_nome,
-              valores
+              valores: formatarValores(valores)
             }))
             .sort((a, b) => a.subcategoria_nome.localeCompare(b.subcategoria_nome))
         }))
@@ -457,12 +465,12 @@ export class RelatorioService {
     return {
       meses,
       entradas: formatarCategorias(entradasCategorias),
-      total_entradas: totalEntradasPorMes,
+      total_entradas: formatarValores(totalEntradasPorMes),
       saidas: formatarCategorias(saidasCategorias),
-      total_saidas: totalSaidasPorMes,
-      saldo_mes: saldoMesPorMes,
-      saldo_anterior: saldoAnteriorPorMes,
-      saldo_acumulado: saldoAcumuladoPorMes
+      total_saidas: formatarValores(totalSaidasPorMes),
+      saldo_mes: formatarValores(saldoMesPorMes),
+      saldo_anterior: formatarValores(saldoAnteriorPorMes),
+      saldo_acumulado: formatarValores(saldoAcumuladoPorMes)
     };
   }
 }
