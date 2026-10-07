@@ -368,14 +368,16 @@ export class TransacaoService {
     if (paymentCents <= 0) throw new Error('O valor do pagamento deve ser maior que zero.');
 
     return prisma.$transaction(async (tx) => {
+      const lastClosedCycle = getLastClosedBillingCycle(
+        paymentDate, cartao.cartao_detalhe!.dia_fechamento, cartao.cartao_detalhe!.dia_vencimento,
+      );
       let invoice = input.fatura_id
         ? await tx.faturaCartao.findFirst({ where: { id: input.fatura_id, usuario_id: usuarioId, cartao_id: cartao.id } })
         : await tx.faturaCartao.findFirst({
             where: {
               usuario_id: usuarioId,
               cartao_id: cartao.id,
-              data_fechamento: { lte: paymentDate },
-              status: { in: ['Fechada', 'ParcialmentePaga', 'Vencida'] },
+              competencia: lastClosedCycle.competence,
             },
             orderBy: { data_fechamento: 'desc' },
           });
@@ -385,11 +387,7 @@ export class TransacaoService {
       }
 
       if (!invoice) {
-        const cycle = getLastClosedBillingCycle(
-          paymentDate,
-          cartao.cartao_detalhe!.dia_fechamento,
-          cartao.cartao_detalhe!.dia_vencimento,
-        );
+        const cycle = lastClosedCycle;
         const historical = await tx.transacao.findMany({
           where: { conta_id: cartao.id, data_transacao: { gte: cycle.start, lte: cycle.end } },
         });
@@ -433,7 +431,7 @@ export class TransacaoService {
         where: { fatura_id: invoice.id },
       });
       const legacyTransactions = await tx.transacao.findMany({
-        where: { conta_id: cartao.id, usuario_id: usuarioId, fatura_id: null },
+        where: { conta_id: cartao.id, usuario_id: usuarioId, fatura_id: null, pagamento_fatura_entrada: { is: null } },
       });
       let totalCents = linkedTransactions.reduce((sum, transaction) => sum + calculateBalanceImpactCents({
         accountType: 'CartaoCredito', transactionType: transaction.tipo,

@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { assertAccountOwnership } from '../services/OwnershipService';
 import { calculateAccountBalanceCents } from '../domain/finance/balanceImpact';
-import { fromCents } from '../domain/finance/money';
+import { fromCents, toCents } from '../domain/finance/money';
+import { getCycleByClosingMonth, getLastClosedBillingCycle, getOpenBillingCycle } from '../domain/billing/billingCycle';
+import { determineInvoiceStatus } from '../services/InvoiceService';
 
 function getFaturaRange(diaFechamento: number): { start: Date; end: Date } {
   const now = new Date();
@@ -189,14 +191,30 @@ export class ContaController {
             });
             if (explicitInvoices.length > 0) {
               const now = new Date();
-              const openInvoice = findNextOpenInvoice(explicitInvoices, now);
-              const closedInvoice = explicitInvoices.find((invoice) =>
-                invoice.data_fechamento <= now && Number(invoice.total) > Number(invoice.total_pago),
-              );
               const legacyTransactions = await prisma.transacao.findMany({
-                where: { conta_id: contaAtualizada.id, usuario_id, fatura_id: null },
+                where: { conta_id: contaAtualizada.id, usuario_id, fatura_id: null, pagamento_fatura_entrada: { is: null } },
               });
-              const invoiceBalance = (invoice: typeof openInvoice): number => {
+              const details = contaAtualizada.cartao_detalhe;
+              // Uma competência legada pode não ter registro próprio mesmo quando
+              // parcelas futuras do mesmo cartão já possuem faturas explícitas.
+              const candidates: Array<Pick<typeof explicitInvoices[number],
+                'competencia' | 'data_fechamento' | 'data_vencimento' | 'transacoes'> & {
+                  id?: string; total_pago: unknown;
+                }> = [...explicitInvoices];
+              for (const cycle of [
+                getOpenBillingCycle(now, details.dia_fechamento, details.dia_vencimento),
+                getLastClosedBillingCycle(now, details.dia_fechamento, details.dia_vencimento),
+              ]) {
+                if (!candidates.some((invoice) => invoice.competencia === cycle.competence)) {
+                  candidates.push({
+                    competencia: cycle.competence,
+                    data_fechamento: cycle.closingDate, data_vencimento: cycle.dueDate,
+                    total_pago: 0,
+                    transacoes: [],
+                  });
+                }
+              }
+              const invoiceBalance = (invoice: typeof candidates[number] | undefined): number => {
                 if (!invoice) return 0;
                 const linkedTotal = invoice.transacoes.reduce(
                   (sum, transaction) => sum + getInvoiceImpact(transaction),
@@ -213,8 +231,12 @@ export class ContaController {
                   if (payment) legacyPaid += Number(transaction.valor);
                   else legacyTotal += getInvoiceImpact(transaction);
                 }
-                return linkedTotal + legacyTotal - Number(invoice.total_pago) - legacyPaid;
+                return fromCents(toCents(linkedTotal) + toCents(legacyTotal) - toCents(Number(invoice.total_pago)) - toCents(legacyPaid));
               };
+              const openInvoice = findNextOpenInvoice(candidates, now);
+              const closedInvoice = candidates
+                .filter((invoice) => invoice.data_fechamento <= now && invoiceBalance(invoice) > 0)
+                .sort((a, b) => b.data_fechamento.getTime() - a.data_fechamento.getTime())[0];
               return {
                 ...contaAtualizada,
                 fatura_atual: Math.max(0, invoiceBalance(openInvoice)),
@@ -256,10 +278,15 @@ export class ContaController {
               }
             }
 
+            const closedCycle = getLastClosedBillingCycle(
+              new Date(), contaAtualizada.cartao_detalhe.dia_fechamento, contaAtualizada.cartao_detalhe.dia_vencimento,
+            );
             return {
               ...contaAtualizada,
               fatura_atual: faturaAtual,
-              fatura_fechada: faturaFechada
+              fatura_fechada: Math.max(0, faturaFechada),
+              fatura_fechada_competencia: closedCycle.competence,
+              fatura_fechada_vencimento: closedCycle.dueDate,
             };
           }
 
@@ -394,7 +421,7 @@ export class ContaController {
         // fatura_id. Nao podemos ignora-las so porque o cartao tambem possui faturas
         // novas, pois isso faz parcelas legadas desaparecerem da interface.
         const legacyTransactions = await prisma.transacao.findMany({
-          where: { conta_id: id, usuario_id, fatura_id: null },
+          where: { conta_id: id, usuario_id, fatura_id: null, pagamento_fatura_entrada: { is: null } },
           orderBy: { data_transacao: 'asc' },
         });
 
@@ -440,10 +467,17 @@ export class ContaController {
               (sum: number, transaction: any) => sum + Number(transaction.impacto_fatura),
               0,
             );
+            const [year, month] = invoice.mes.split('-').map(Number);
+            const cycle = getCycleByClosingMonth(year, month - 1, conta.cartao_detalhe!.dia_fechamento, conta.cartao_detalhe!.dia_vencimento);
+            const closingDate = invoice.data_fechamento ?? cycle.closingDate;
+            const dueDate = invoice.data_vencimento ?? cycle.dueDate;
             return {
               ...invoice,
               total,
-              saldo_restante: Math.max(0, total - invoice.total_pago),
+              data_fechamento: closingDate,
+              data_vencimento: dueDate,
+              status: determineInvoiceStatus({ total, paid: invoice.total_pago, closingDate, dueDate }),
+              saldo_restante: Math.max(0, fromCents(toCents(total) - toCents(invoice.total_pago))),
             };
           })
           .sort((a, b) => a.mes.localeCompare(b.mes));
@@ -514,7 +548,17 @@ export class ContaController {
       }
 
       // Converte para array ordenado por data
-      const faturas = Object.values(faturasMap).sort((a, b) => a.mes.localeCompare(b.mes));
+      const faturas = Object.values(faturasMap).map((invoice) => {
+        const [year, month] = invoice.mes.split('-').map(Number);
+        const cycle = getCycleByClosingMonth(year, month - 1, conta.cartao_detalhe!.dia_fechamento, conta.cartao_detalhe!.dia_vencimento);
+        return {
+          ...invoice,
+          data_fechamento: cycle.closingDate,
+          data_vencimento: cycle.dueDate,
+          status: determineInvoiceStatus({ total: invoice.total, paid: invoice.total_pago, closingDate: cycle.closingDate, dueDate: cycle.dueDate }),
+          saldo_restante: Math.max(0, fromCents(toCents(invoice.total) - toCents(invoice.total_pago))),
+        };
+      }).sort((a, b) => a.mes.localeCompare(b.mes));
 
       return res.json({
         conta: {

@@ -390,4 +390,73 @@ describeDatabase('API com PostgreSQL isolado', () => {
     delete process.env.METRICS_TOKEN;
     await request(app).get('/api/health').expect(200).expect(({ body }) => expect(body.database).toBe('ok'));
   });
+  it('paga a parcela legada de setembro que vence em outubro sem selecionar outra fatura', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-07T12:00:00Z'));
+    try {
+      const agent = request.agent(app);
+      const login = await agent.post('/api/auth/login').send({ email, senha: 'Integration!2026' }).expect(200);
+      const csrf = csrfFrom(login);
+      const source = await agent.post('/api/contas').set('X-CSRF-Token', csrf).send({
+        nome: 'Origem pagamento legado', tipo: 'Corrente', saldo_inicial: 100,
+      }).expect(201);
+      const card = await agent.post('/api/contas').set('X-CSRF-Token', csrf).send({
+        nome: 'Cartão legado', tipo: 'CartaoCredito', saldo_inicial: 0,
+        limite_total: 3300, dia_fechamento: 26, dia_vencimento: 7,
+      }).expect(201);
+      const userId = card.body.usuario_id;
+      const oldInvoice = await prisma.faturaCartao.create({ data: {
+        usuario_id: userId, cartao_id: card.body.id, competencia: '2026-08', total: 10, status: 'Fechada',
+        data_inicio: new Date('2026-07-26T00:00:00Z'), data_fim: new Date('2026-08-25T23:59:59.999Z'),
+        data_fechamento: new Date('2026-08-26T00:00:00Z'), data_vencimento: new Date('2026-09-07T23:59:59.999Z'),
+      } });
+      await prisma.transacao.create({ data: {
+        usuario_id: userId, conta_id: card.body.id, fatura_id: oldInvoice.id,
+        descricao: 'Compra antiga', valor: 10, tipo: 'Despesa', status: 'Pendente', data_transacao: new Date('2026-08-06T12:00:00Z'),
+      } });
+      const legacy = await prisma.transacao.create({ data: {
+        usuario_id: userId, conta_id: card.body.id, descricao: 'iPhone parcela 4/8', valor: 72.51,
+        tipo: 'Despesa', status: 'Pendente', parcela_atual: 4, total_parcelas: 8,
+        data_transacao: new Date('2026-09-06T12:00:00Z'),
+      } });
+      await agent.post('/api/transacoes').set('X-CSRF-Token', csrf).send({
+        conta_id: card.body.id, descricao: 'Parcela futura', valor: 72.51, tipo: 'Despesa',
+        status: 'Pendente', data_transacao: '2026-10-06T12:00:00Z', total_parcelas: 1,
+      }).expect(201);
+
+      const accounts = await agent.get('/api/contas').expect(200);
+      expect(accounts.body.find((item: { id: string }) => item.id === card.body.id)).toMatchObject({
+        fatura_fechada: 72.51, fatura_fechada_competencia: '2026-09',
+        fatura_fechada_vencimento: '2026-10-07T23:59:59.999Z',
+      });
+      const invoices = await agent.get(`/api/contas/${card.body.id}/faturas`).expect(200);
+      expect(invoices.body.faturas.find((invoice: { mes: string }) => invoice.mes === '2026-09')).toMatchObject({
+        total: 72.51, status: 'Fechada', data_vencimento: '2026-10-07T23:59:59.999Z',
+      });
+      const payment = await agent.post('/api/transacoes/pagar-fatura').set('X-CSRF-Token', csrf).send({
+        cartao_id: card.body.id, conta_origem_id: source.body.id, valor: 20, data_pagamento: '2026-10-07',
+      }).expect(201);
+      expect(payment.body.saldo_restante).toBe(52.51);
+      const afterPartial = await agent.get(`/api/contas/${card.body.id}/faturas`).expect(200);
+      expect(afterPartial.body.faturas.find((invoice: { mes: string }) => invoice.mes === '2026-09')).toMatchObject({
+        total: 72.51, total_pago: 20, saldo_restante: 52.51, status: 'ParcialmentePaga',
+      });
+      const afterPartialAccounts = await agent.get('/api/contas').expect(200);
+      expect(afterPartialAccounts.body.find((item: { id: string }) => item.id === card.body.id)).toMatchObject({
+        fatura_fechada: 52.51, fatura_fechada_id: payment.body.fatura_id,
+      });
+      await agent.post('/api/transacoes/pagar-fatura').set('X-CSRF-Token', csrf).send({
+        cartao_id: card.body.id, conta_origem_id: source.body.id, fatura_id: payment.body.fatura_id,
+        valor: 52.51, data_pagamento: '2026-10-07',
+      }).expect(201).expect(({ body }) => expect(body.saldo_restante).toBe(0));
+      const paidInvoice = await prisma.faturaCartao.findUniqueOrThrow({ where: { id: payment.body.fatura_id } });
+      expect(paidInvoice.competencia).toBe('2026-09');
+      expect(Number(paidInvoice.total_pago)).toBe(72.51);
+      expect((await prisma.transacao.findUniqueOrThrow({ where: { id: legacy.id } })).fatura_id).toBe(paidInvoice.id);
+      expect(Number((await prisma.contaBancaria.findUniqueOrThrow({ where: { id: source.body.id } })).saldo_atual)).toBe(27.49);
+      expect(Number((await prisma.faturaCartao.findUniqueOrThrow({ where: { id: oldInvoice.id } })).total_pago)).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
