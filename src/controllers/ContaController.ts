@@ -452,7 +452,7 @@ export class ContaController {
             invoice = { mes: month, total_pago: 0, transacoes: [], pagamentos: [] };
             invoicesByMonth.set(month, invoice);
           }
-          if (payment) invoice.total_pago += Number(transaction.valor);
+          if (payment) invoice.total_pago = fromCents(toCents(invoice.total_pago) + toCents(transaction.valor));
           invoice.transacoes.push({
             ...transaction,
             impacto_fatura: payment ? 0 : getInvoiceImpact(transaction),
@@ -463,10 +463,10 @@ export class ContaController {
           .map((invoice) => {
             // A soma dos lancamentos exibidos e a fonte de verdade da composicao da
             // fatura. Isso tambem corrige totais defasados durante a transicao legada.
-            const total = invoice.transacoes.reduce(
-              (sum: number, transaction: any) => sum + Number(transaction.impacto_fatura),
+            const total = fromCents(invoice.transacoes.reduce(
+              (sum: number, transaction: any) => sum + toCents(transaction.impacto_fatura),
               0,
-            );
+            ));
             const [year, month] = invoice.mes.split('-').map(Number);
             const cycle = getCycleByClosingMonth(year, month - 1, conta.cartao_detalhe!.dia_fechamento, conta.cartao_detalhe!.dia_vencimento);
             const closingDate = invoice.data_fechamento ?? cycle.closingDate;
@@ -524,7 +524,7 @@ export class ContaController {
         let impacto = 0;
 
         if (isPayment) {
-          faturasMap[mesFatura].total_pago += valor;
+          faturasMap[mesFatura].total_pago = fromCents(toCents(faturasMap[mesFatura].total_pago) + toCents(valor));
           impacto = 0;
         } else {
           if (t.tipo === 'Despesa') {
@@ -538,7 +538,7 @@ export class ContaController {
           } else if (t.tipo === 'Receita') {
             impacto = -valor;
           }
-          faturasMap[mesFatura].total += impacto;
+          faturasMap[mesFatura].total = fromCents(toCents(faturasMap[mesFatura].total) + toCents(impacto));
         }
 
         faturasMap[mesFatura].transacoes.push({

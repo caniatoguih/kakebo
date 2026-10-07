@@ -44,4 +44,24 @@ describe('invoice status', () => {
       now,
     })).toBe('Vencida');
   });
+
+  it('does not mark a settled invoice overdue because of floating point sums', () => {
+    expect(determineInvoiceStatus({
+      total: 401.08000000000004,
+      paid: 401.08,
+      closingDate: new Date('2026-08-26T00:00:00Z'),
+      dueDate: new Date('2026-09-07T23:59:59.999Z'),
+      now: new Date('2026-10-07T12:00:00Z'),
+    })).toBe('Paga');
+  });
+
+  it('still marks one outstanding cent overdue', () => {
+    expect(determineInvoiceStatus({
+      total: 401.08,
+      paid: 401.07,
+      closingDate: new Date('2026-08-26T00:00:00Z'),
+      dueDate: new Date('2026-09-07T23:59:59.999Z'),
+      now: new Date('2026-10-07T12:00:00Z'),
+    })).toBe('Vencida');
+  });
 });

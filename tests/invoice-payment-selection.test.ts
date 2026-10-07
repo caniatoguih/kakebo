@@ -1,9 +1,9 @@
 import type { Request, Response } from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ accounts: vi.fn(), invoices: vi.fn(), transactions: vi.fn() }));
+const mocks = vi.hoisted(() => ({ accounts: vi.fn(), account: vi.fn(), invoices: vi.fn(), transactions: vi.fn() }));
 vi.mock('../src/lib/prisma', () => ({ default: {
-  contaBancaria: { findMany: mocks.accounts },
+  contaBancaria: { findMany: mocks.accounts, findFirst: mocks.account },
   faturaCartao: { findMany: mocks.invoices },
   transacao: { findMany: mocks.transactions },
 } }));
@@ -61,5 +61,19 @@ describe('saldo da fatura selecionada para pagamento', () => {
     mocks.invoices.mockResolvedValue([{ ...october, data_fechamento: new Date('2026-10-26T00:00:00Z') }]);
     mocks.transactions.mockResolvedValue([{ ...purchase, valor: 72.51, data_transacao: new Date('2026-09-06T12:00:00Z') }]);
     expect(await listCard()).toMatchObject({ fatura_fechada: 72.51, fatura_fechada_id: undefined, fatura_fechada_competencia: '2026-09', fatura_fechada_vencimento: new Date('2026-10-07T23:59:59.999Z') });
+  });
+
+  it('exibe agosto liquidado como Paga com total exato e restante zero', async () => {
+    mocks.account.mockResolvedValue({ id: 'card', cartao_detalhe: { dia_fechamento: 26, dia_vencimento: 7 } });
+    mocks.invoices.mockResolvedValue([{
+      ...october, competencia: '2026-08', total: 401.08, total_pago: 401.08, pagamentos: [],
+      data_fechamento: new Date('2026-08-26T00:00:00Z'), data_vencimento: new Date('2026-09-07T23:59:59.999Z'),
+      transacoes: [72.51, 72.51, 72.51, 183.55].map((valor) => ({ ...purchase, valor })),
+    }]);
+    const json = vi.fn();
+    const response = { json, status: vi.fn().mockReturnThis() };
+    await new ContaController().getFaturas({ usuario_id: 'user', params: { id: 'card' } } as unknown as Request, response as unknown as Response);
+    expect(response.status).not.toHaveBeenCalled();
+    expect(json.mock.calls[0][0].faturas[0]).toMatchObject({ total: 401.08, total_pago: 401.08, saldo_restante: 0, status: 'Paga' });
   });
 });

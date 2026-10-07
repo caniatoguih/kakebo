@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { getBillingCycleForDate } from '../domain/billing/billingCycle';
 import { calculateBalanceImpactCents } from '../domain/finance/balanceImpact';
-import { fromCents } from '../domain/finance/money';
+import { fromCents, toCents } from '../domain/finance/money';
 
 type InvoiceTransactionInput = Prisma.TransacaoUncheckedCreateInput;
 
@@ -13,9 +13,11 @@ export function determineInvoiceStatus(input: {
   now?: Date;
 }): 'Aberta' | 'Fechada' | 'ParcialmentePaga' | 'Paga' | 'Vencida' {
   const now = input.now ?? new Date();
-  if (input.total > 0 && input.paid >= input.total) return 'Paga';
-  if (input.paid < input.total && input.dueDate < now) return 'Vencida';
-  if (input.paid > 0 && input.paid < input.total) return 'ParcialmentePaga';
+  const totalCents = toCents(input.total);
+  const paidCents = toCents(input.paid);
+  if (totalCents > 0 && paidCents >= totalCents) return 'Paga';
+  if (paidCents < totalCents && input.dueDate < now) return 'Vencida';
+  if (paidCents > 0 && paidCents < totalCents) return 'ParcialmentePaga';
   return input.closingDate > now ? 'Aberta' : 'Fechada';
 }
 
