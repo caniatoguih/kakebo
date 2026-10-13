@@ -123,6 +123,7 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['contas'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
+      queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
       setOpen(false);
       if (!editItem) {
         reset();

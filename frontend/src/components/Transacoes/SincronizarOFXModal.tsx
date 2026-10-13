@@ -255,6 +255,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['contas'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
+      queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
     },
     onError: (err: any) => {
       notify(err.response?.data?.message || 'Erro ao sincronizar extratos OFX.');
@@ -273,6 +274,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['contas'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
+      queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
     },
     onError: (err: any) => {
       notify(err.response?.data?.message || 'Erro ao lançar transação.');
@@ -517,6 +519,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['contas'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
+      queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
     } catch {
       notify("Erro ao lançar todas as transferências.");
     } finally {

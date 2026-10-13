@@ -232,6 +232,12 @@ export function PlanejamentoSalarialPanel(): ReactElement {
     mutationFn: ({ id, options }: { id: string; options: OpcoesLancamentoSalarial }) => planejamentoSalarialService.lancar(id, options),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ['planejamento-salarial'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['transacoes'] }),
+        queryClient.invalidateQueries({ queryKey: ['contas'] }),
+        queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] }),
+        queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] }),
+      ]);
       setLaunchTarget(null);
       const details = [result.removidos_pendentes ? `${result.removidos_pendentes} obsoleto(s) removido(s)` : '', result.ignorados_pago ? `${result.ignorados_pago} pago(s) preservado(s)` : ''].filter(Boolean).join(' · ');
       notify(`${result.message}${details ? ` ${details}.` : ''}`, 'success');
@@ -242,6 +248,12 @@ export function PlanejamentoSalarialPanel(): ReactElement {
     mutationFn: planejamentoSalarialService.excluir,
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ['planejamento-salarial'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['transacoes'] }),
+        queryClient.invalidateQueries({ queryKey: ['contas'] }),
+        queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] }),
+        queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] }),
+      ]);
       setPendingDelete(null); setCalculation(null); setCalculationPlanId(null);
       if (pendingDelete?.id === editingId) { setEditingId(null); setForm(emptyForm()); }
       notify(`${result.message} ${result.lancamentos_pendentes_removidos} pendente(s) removido(s) e ${result.lancamentos_pagos_preservados} pago(s) preservado(s).`, 'success');

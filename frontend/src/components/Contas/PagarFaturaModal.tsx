@@ -50,6 +50,7 @@ export function PagarFaturaModal({ cartao }: PagarFaturaModalProps): React.React
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
       queryClient.invalidateQueries({ queryKey: ['faturas-cartao', cartao.id] });
+      queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
       setOpen(false);
       notify('Pagamento da fatura registrado com sucesso.', 'success');
     },

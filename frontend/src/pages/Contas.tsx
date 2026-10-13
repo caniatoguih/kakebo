@@ -121,6 +121,8 @@ export function Contas(): React.ReactElement {
       queryClient.invalidateQueries({ queryKey: ['contas'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
+      queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
+      queryClient.invalidateQueries({ queryKey: ['contas-list'] });
       setPendingDelete(null);
       notify('Conta excluída com sucesso.', 'success');
     },

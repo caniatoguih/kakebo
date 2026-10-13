@@ -106,6 +106,7 @@ export function Transacoes() {
     queryClient.invalidateQueries({ queryKey: ['transacoes'] });
     queryClient.invalidateQueries({ queryKey: ['contas'] });
     queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
+    queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
   };
   const toggleMutation = useMutation({
     mutationFn: transacoesService.toggleStatus,

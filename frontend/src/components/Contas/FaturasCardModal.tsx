@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { contasService, type ContaData, type FaturasResponse } from '@/services/contasService';
@@ -15,6 +15,7 @@ interface FaturasCardModalProps {
 }
 
 export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.ReactElement {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
   const [pendingCancellation, setPendingCancellation] = useState<{ parentId: string; installment: number } | null>(null);
@@ -46,6 +47,7 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
     try {
       const response = await transacoesService.prorrogar(transacao_pai_id, meses);
       notify(response.message, 'success');
+      queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
       refetch();
     } catch (error: any) {
       console.error(error);
@@ -64,6 +66,7 @@ export function FaturasCardModal({ cartao }: FaturasCardModalProps): React.React
     try {
       const response = await transacoesService.cancelarRecorrencia(pendingCancellation.parentId, pendingCancellation.installment);
       notify(response.message, 'success');
+      queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
       setPendingCancellation(null);
       refetch();
     } catch (error: any) {

@@ -353,6 +353,7 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['contas'] });
       queryClient.invalidateQueries({ queryKey: ['relatorio-reflexao'] });
+      queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
       setOpen(false);
       resetModal();
     },

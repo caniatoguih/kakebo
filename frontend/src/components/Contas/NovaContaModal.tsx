@@ -99,6 +99,8 @@ export function NovaContaModal({ contaParaEditar }: NovaContaModalProps): React.
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contas'] });
+      queryClient.invalidateQueries({ queryKey: ['contas-list'] });
+      queryClient.invalidateQueries({ queryKey: ['fluxo-contabil'] });
       setOpen(false);
       reset();
     },
