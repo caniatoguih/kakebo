@@ -338,6 +338,10 @@ export class RelatorioService {
     const transacoesNoPeriodo: any[] = [];
 
     for (const t of transacoes) {
+      // O pagamento da fatura movimenta dinheiro entre contas, mas não é uma
+      // nova despesa: as compras já compõem o valor da fatura no mês previsto.
+      if (t.tipo === 'Transferencia' && isInvoicePayment(t.descricao)) continue;
+
       let mesStr = '';
       if (t.conta?.tipo === 'CartaoCredito' && t.conta.cartao_detalhe && !isInvoicePayment(t.descricao)) {
         mesStr = getCashFlowMonthForCardTransaction(
@@ -398,7 +402,8 @@ export class RelatorioService {
       let isEntrada = t.tipo === 'Receita';
       
       if (t.conta?.tipo === 'CartaoCredito' && t.tipo !== 'Transferencia') {
-        catNome = `Fatura ${t.conta.nome}`;
+        catNome = 'Cartões de Crédito';
+        subCatNome = t.conta.nome;
       } else if (t.tipo === 'Transferencia') {
         catNome = 'Transferências';
         if (t.descricao.includes('[Saída]')) {

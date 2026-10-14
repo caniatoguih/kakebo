@@ -30,15 +30,24 @@ const formatMonthLabel = (monthStr: string) => {
   return `${monthsNames[parseInt(month) - 1]} ${year}`;
 };
 
+const addMonthsToMonth = (monthStr: string, monthsToAdd: number) => {
+  const [year, month] = monthStr.split('-').map(Number);
+  const monthIndex = year * 12 + month - 1 + monthsToAdd;
+  const resultYear = Math.floor(monthIndex / 12);
+  const resultMonth = (monthIndex % 12) + 1;
+  return `${resultYear}-${String(resultMonth).padStart(2, '0')}`;
+};
+
 export function FluxoContabil() {
   const currentMonth = useMemo(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
   }, []);
 
-  // Modo de filtro: 'Personalizado' ou 'Anual'
-  const [filtroModo, setFiltroModo] = useState<'Personalizado' | 'Anual'>('Anual');
+  // Period filter: full year, custom range, or a rolling range from the current month.
+  const [filtroModo, setFiltroModo] = useState<'Personalizado' | 'Anual' | 'Proximos'>('Anual');
   const [anoSelecionado, setAnoSelecionado] = useState<string>(() => String(new Date().getFullYear()));
+  const [quantidadeProximosMeses, setQuantidadeProximosMeses] = useState(6);
   const [mobileMonth, setMobileMonth] = useState(currentMonth);
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches
@@ -95,13 +104,18 @@ export function FluxoContabil() {
         startMonth: `${anoSelecionado}-01`,
         endMonth: `${anoSelecionado}-12`
       };
+    } else if (filtroModo === 'Proximos') {
+      return {
+        startMonth: currentMonth,
+        endMonth: addMonthsToMonth(currentMonth, quantidadeProximosMeses - 1)
+      };
     } else {
       return {
         startMonth: startMonthCustom,
         endMonth: endMonthCustom
       };
     }
-  }, [isMobileViewport, mobileMonth, filtroModo, anoSelecionado, startMonthCustom, endMonthCustom]);
+  }, [isMobileViewport, mobileMonth, filtroModo, anoSelecionado, quantidadeProximosMeses, currentMonth, startMonthCustom, endMonthCustom]);
 
   // Query das contas bancárias
   const { data: contas } = useQuery({
@@ -416,6 +430,7 @@ export function FluxoContabil() {
               </SelectTrigger>
               <SelectContent className="rounded-xl">
                 <SelectItem value="Anual">Ano Inteiro</SelectItem>
+                <SelectItem value="Proximos">Próximos X meses</SelectItem>
                 <SelectItem value="Personalizado">Período Personalizado</SelectItem>
               </SelectContent>
             </Select>
@@ -435,6 +450,21 @@ export function FluxoContabil() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          ) : filtroModo === 'Proximos' ? (
+            <div className="hidden min-w-[160px] flex-col gap-1.5 md:flex">
+              <Label htmlFor="quantidade-proximos-meses" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Meses a exibir</Label>
+              <Select value={String(quantidadeProximosMeses)} onValueChange={(value) => setQuantidadeProximosMeses(Number(value))}>
+                <SelectTrigger id="quantidade-proximos-meses" className="rounded-xl border-slate-200 dark:border-slate-800 bg-transparent h-10 text-xs font-bold">
+                  <SelectValue placeholder="Quantidade de meses" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60 rounded-xl">
+                  {Array.from({ length: 24 }, (_, index) => index + 1).map((months) => (
+                    <SelectItem key={months} value={String(months)}>{months} {months === 1 ? 'mês' : 'meses'}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-[11px] text-muted-foreground">A partir de {formatMonthLabel(currentMonth)} (inclui o mês atual)</span>
             </div>
           ) : (
             <>

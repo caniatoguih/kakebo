@@ -27,12 +27,12 @@ services:
       - "3000:3000"
     env_file:
       - .env
-    environment:
-      # Override the DATABASE_URL to point to the 'db' container instead of 'localhost'
-      - DATABASE_URL=postgresql://gcaniato:9519Gc!%23@db:5432/kakebo?schema=public
-    depends_on:
-      db:
-        condition: service_healthy
+    # environment:
+    #   # Override the DATABASE_URL to point to the 'db' container instead of 'localhost'
+    #   - DATABASE_URL=postgresql://gcaniato:9519Gc!%23@db:5432/kakebo?schema=public
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
     volumes:
       - ./src:/app/src
       - ./prisma:/app/prisma
