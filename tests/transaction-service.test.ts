@@ -14,12 +14,23 @@ const mocks = vi.hoisted(() => {
     transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
     accountOwnership: vi.fn(),
     subcategoryOwnership: vi.fn(),
+    transactionFindMany: vi.fn(),
+    transactionUpdateMany: vi.fn(),
+    accountFindUnique: vi.fn(),
   };
 });
 
 vi.mock('../src/lib/prisma', () => ({
   default: {
     $transaction: mocks.transaction,
+    transacao: {
+      findMany: mocks.transactionFindMany,
+      updateMany: mocks.transactionUpdateMany,
+    },
+    contaBancaria: {
+      findUnique: mocks.accountFindUnique,
+      update: vi.fn(),
+    },
     cartaoCreditoDetalhe: { findUnique: vi.fn().mockResolvedValue({ dia_fechamento: 10, dia_vencimento: 17 }) },
   },
 }));
@@ -160,5 +171,65 @@ describe('criação financeira atômica', () => {
       where: { id: 'conta-2' }, data: { saldo_atual: { increment: 300 } },
     });
     expect(result).toEqual(expect.objectContaining({ message: '3 transferências recorrentes criadas com sucesso.' }));
+  });
+
+  it('interpreta a data DTPOSTED como data UTC do extrato', () => {
+    const service = new TransacaoService();
+    const [transaction] = service.parseOFX(`
+      <STMTTRN>
+        <TRNTYPE>DEBIT
+        <DTPOSTED>20260701
+        <TRNAMT>-45.90
+        <MEMO>Compra
+        <FITID>fit-1
+      </STMTTRN>
+    `);
+
+    expect(transaction.data.toISOString()).toBe('2026-07-01T12:00:00.000Z');
+  });
+
+  it('sugere transações do mesmo valor e tipo em outra data nos itens sem match', async () => {
+    mocks.accountFindUnique.mockResolvedValue({ id: 'conta-1', usuario_id: 'usuario-1', tipo: 'Corrente' });
+    mocks.transactionFindMany.mockResolvedValue([
+      {
+        id: 'different-date',
+        descricao: 'Compra em outra data',
+        valor: 45.9,
+        tipo: 'Despesa',
+        status: 'Pago',
+        data_transacao: new Date('2026-07-14T00:00:00.000Z'),
+      },
+      {
+        id: 'different-amount',
+        descricao: 'Compra de outro valor',
+        valor: 46,
+        tipo: 'Despesa',
+        status: 'Pago',
+        data_transacao: new Date('2026-07-14T00:00:00.000Z'),
+      },
+      {
+        id: 'different-type',
+        descricao: 'Receita em outra data',
+        valor: 45.9,
+        tipo: 'Receita',
+        status: 'Pago',
+        data_transacao: new Date('2026-07-14T00:00:00.000Z'),
+      },
+    ]);
+
+    const service = new TransacaoService();
+    const result = await service.conciliarOFX('usuario-1', 'conta-1', `
+      <STMTTRN>
+        <TRNTYPE>DEBIT
+        <DTPOSTED>20260701
+        <TRNAMT>-45.90
+        <MEMO>Compra do extrato
+      </STMTTRN>
+    `);
+
+    expect(result.naoEncontradas).toHaveLength(1);
+    expect(result.naoEncontradas[0].possiveisCorrespondencias).toEqual([
+      expect.objectContaining({ id: 'different-date', descricao: 'Compra em outra data' }),
+    ]);
   });
 });

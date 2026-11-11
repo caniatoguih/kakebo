@@ -10,6 +10,23 @@ import { InvoiceService } from './InvoiceService';
 import { getBillingCycleForDate, getLastClosedBillingCycle, isLegacyInvoicePayment } from '../domain/billing/billingCycle';
 import { recordFinancialAudit } from './AuditService';
 
+type OFXTransaction = {
+  tipo: 'Receita' | 'Despesa';
+  valor: number;
+  data: Date;
+  descricao: string;
+  fitid: string;
+};
+
+type SimilarTransaction = {
+  id: string;
+  descricao: string;
+  valor: number;
+  tipo: string;
+  status: string;
+  data_transacao: Date;
+};
+
 function nativeDifferenceInDays(d1: Date, d2: Date): number {
   const diffTime = Math.abs(d1.getTime() - d2.getTime());
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -703,8 +720,8 @@ export class TransacaoService {
     return { message: `${count} transações importadas com sucesso.`, count };
   }
 
-  parseOFX(ofxText: string): Array<{ tipo: 'Receita' | 'Despesa'; valor: number; data: Date; descricao: string; fitid: string }> {
-    const transactions: Array<{ tipo: 'Receita' | 'Despesa'; valor: number; data: Date; descricao: string; fitid: string }> = [];
+  parseOFX(ofxText: string): OFXTransaction[] {
+    const transactions: OFXTransaction[] = [];
     
     // Split by <STMTTRN> tag (case-insensitive)
     const blocks = ofxText.split(/<STMTTRN>/i).slice(1);
@@ -732,7 +749,7 @@ export class TransacaoService {
           const year = parseInt(dStr.slice(0, 4));
           const month = parseInt(dStr.slice(4, 6)) - 1;
           const day = parseInt(dStr.slice(6, 8));
-          data = new Date(year, month, day);
+          data = new Date(Date.UTC(year, month, day, 12));
         }
 
         const fitid = fitidMatch ? fitidMatch[1].trim() : '';
@@ -767,7 +784,7 @@ export class TransacaoService {
     });
 
     const conciliadas: Array<{ ofx: any; transacao: any; alreadyPaid?: boolean }> = [];
-    const naoEncontradas: Array<any> = [];
+    const naoEncontradas: OFXTransaction[] = [];
 
     // Conjunto de IDs de transações já combinadas para evitar match duplo
     const matchedIds = new Set<string>();
@@ -851,12 +868,33 @@ export class TransacaoService {
       });
     }
 
+    const naoEncontradasComSugestoes = naoEncontradas.map((ofxTr) => ({
+      ...ofxTr,
+      possiveisCorrespondencias: todas
+        .filter((transacao) => {
+          if (matchedIds.has(transacao.id)) return false;
+          if (Number(transacao.valor) !== ofxTr.valor) return false;
+          if (!isTypeCompatible(transacao.tipo, transacao.descricao, ofxTr.tipo)) return false;
+
+          const transacaoDate = new Date(transacao.data_transacao);
+          return transacaoDate.toISOString().slice(0, 10) !== ofxTr.data.toISOString().slice(0, 10);
+        })
+        .map((transacao): SimilarTransaction => ({
+          id: transacao.id,
+          descricao: transacao.descricao,
+          valor: Number(transacao.valor),
+          tipo: transacao.tipo,
+          status: transacao.status,
+          data_transacao: transacao.data_transacao,
+        })),
+    }));
+
     return {
       message: `${conciliadas.length} transações conciliadas com sucesso.`,
       conciliadasCount: conciliadas.length,
-      naoEncontradasCount: naoEncontradas.length,
+      naoEncontradasCount: naoEncontradasComSugestoes.length,
       conciliadas,
-      naoEncontradas
+      naoEncontradas: naoEncontradasComSugestoes
     };
   }
 
@@ -980,11 +1018,8 @@ export class TransacaoService {
     const allUnmatched: Array<{
       conta_id: string;
       conta_nome: string;
-      tipo: 'Receita' | 'Despesa';
-      valor: number;
-      data: Date;
-      descricao: string;
-      fitid: string;
+    } & OFXTransaction & {
+      possiveisCorrespondencias: SimilarTransaction[];
     }> = [];
 
     // 2. Executa a conciliação individual de cada extrato
@@ -1001,7 +1036,8 @@ export class TransacaoService {
         valor: item.valor,
         data: new Date(item.data),
         descricao: item.descricao,
-        fitid: item.fitid
+        fitid: item.fitid,
+        possiveisCorrespondencias: item.possiveisCorrespondencias,
       }));
 
       allUnmatched.push(...mappedUnmatched);
