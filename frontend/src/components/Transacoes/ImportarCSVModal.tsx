@@ -485,10 +485,10 @@ export function ImportarCSVModal({ trigger }: { trigger?: React.ReactNode } = {}
               </h3>
               <ul className="space-y-2 text-muted-foreground list-disc list-inside">
                 <li>
-                  <strong className="text-foreground">Codificação Automática:</strong> Detecta arquivos em <code className="bg-muted px-1 py-0.5 rounded">UTF-8</code> e <code className="bg-muted px-1 py-0.5 rounded">ISO-8859-1</code> (comum em exports de bancos brasileiros como Itaú e Bradesco), evitando textos corrompidos.
+                  <strong className="text-foreground">Codificação Automática:</strong> Detecta arquivos em <code className="bg-muted px-1 py-0.5 rounded text-foreground">UTF-8</code> e <code className="bg-muted px-1 py-0.5 rounded text-foreground">ISO-8859-1</code> (comum em exports de bancos brasileiros como Itaú e Bradesco), evitando textos corrompidos.
                 </li>
                 <li>
-                  <strong className="text-foreground">Separadores Suportados:</strong> Aceita delimitadores por vírgula (<code className="bg-muted px-1 py-0.5 rounded">,</code>) ou ponto e vírgula (<code className="bg-muted px-1 py-0.5 rounded">;</code>).
+                  <strong className="text-foreground">Separadores Suportados:</strong> Aceita delimitadores por vírgula (<code className="bg-muted px-1 py-0.5 rounded text-foreground">,</code>) ou ponto e vírgula (<code className="bg-muted px-1 py-0.5 rounded text-foreground">;</code>).
                 </li>
                 <li>
                   <strong className="text-foreground">Subcategorias:</strong> Se o arquivo contiver uma coluna com subcategorias, você poderá mapeá-la para autodeclaração.

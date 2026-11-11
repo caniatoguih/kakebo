@@ -224,9 +224,9 @@ export function NovaTransacaoModal({ editItem, trigger }: Props = {}): React.Rea
                   const Icon = option.icon;
                   const active = tipo === option.value;
                   const colorClasses = {
-                    rose: 'border-rose-500 bg-rose-50 ring-1 ring-rose-500 dark:bg-rose-950/20 text-rose-600',
-                    emerald: 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500 dark:bg-emerald-950/20 text-emerald-600',
-                    blue: 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 dark:bg-blue-950/20 text-blue-600',
+                    rose: 'border-rose-500 bg-rose-50 ring-1 ring-rose-500 text-rose-700 dark:bg-rose-950/20 dark:text-rose-300',
+                    emerald: 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300',
+                    blue: 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700 dark:bg-blue-950/20 dark:text-blue-300',
                   };
                   return (
                     <button

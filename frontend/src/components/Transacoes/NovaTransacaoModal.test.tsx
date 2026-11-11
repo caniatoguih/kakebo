@@ -57,6 +57,21 @@ describe('NovaTransacaoModal', () => {
     expect(saveButton.closest('div')?.className ?? '').not.toMatch(/\bfixed\b/);
   });
 
+  it('mantém contraste legível no tipo de lançamento selecionado', async () => {
+    renderModal();
+    await userEvent.click(screen.getByRole('button', { name: 'Nova Transação' }));
+
+    const expense = screen.getByRole('button', { name: /Despesa.*Dinheiro que saiu/i });
+    const income = screen.getByRole('button', { name: /Receita.*Dinheiro que entrou/i });
+    const transfer = screen.getByRole('button', { name: /Transferência.*Entre suas contas/i });
+
+    expect(expense).toHaveClass('text-rose-700');
+    await userEvent.click(income);
+    expect(income).toHaveClass('text-emerald-700');
+    await userEvent.click(transfer);
+    expect(transfer).toHaveClass('text-blue-700');
+  });
+
   it('registra uma despesa com os campos essenciais', async () => {
     renderModal();
     await userEvent.click(screen.getByRole('button', { name: 'Nova Transação' }));

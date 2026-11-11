@@ -20,6 +20,7 @@ const report = {
 };
 
 test('adapta o fluxo contábil à largura disponível', async ({ page, isMobile }, testInfo) => {
+  await page.clock.install({ time: new Date('2026-08-11T12:00:00Z') });
   await page.route('**/api/auth/me', (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',

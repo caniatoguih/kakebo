@@ -20,7 +20,7 @@ export const apiLimiter = rateLimit({
 // Stricter rate limiter for sensitive routes (e.g., login, register)
 export const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  limit: 10, // Limit each IP to 10 requests per `window`
+  limit: process.env.NODE_ENV === 'test' ? 1_000 : 10,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: {
