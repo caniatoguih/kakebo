@@ -9,7 +9,9 @@ import { transacoesService } from '@/services/transacoesService';
 import { contasService, type ContaData } from '@/services/contasService';
 import { categoriasService } from '@/services/categoriasService';
 import { Upload, Check, RefreshCw, CheckCircle2, HelpCircle, Plus, Trash2, ArrowLeftRight, Sparkles } from 'lucide-react';
-import { format } from 'date-fns';
+
+const calendarDateFormatter = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' });
+const formatCalendarDate = (date: string) => calendarDateFormatter.format(new Date(date));
 
 interface ReconcileResult {
   message: string;
@@ -38,6 +40,14 @@ interface ReconcileResult {
     data: string;
     descricao: string;
     fitid: string;
+    possiveisCorrespondencias: Array<{
+      id: string;
+      descricao: string;
+      valor: number;
+      tipo: string;
+      status: string;
+      data_transacao: string;
+    }>;
   }>;
   suggestedTransfers: Array<{
     id: string;
@@ -819,7 +829,7 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                             </span>
                           </div>
                           <div className="flex justify-between text-xs text-muted-foreground items-center">
-                            <span>Data Kakebo: {format(new Date(item.transacao.data_transacao), 'dd/MM/yyyy')}</span>
+                            <span>Data Kakebo: {formatCalendarDate(item.transacao.data_transacao)}</span>
                             <div className="flex gap-2 items-center">
                               <span className="italic text-emerald-500/80">Extrato: {item.ofx.descricao}</span>
                               {item.alreadyPaid && (
@@ -889,8 +899,22 @@ export function SincronizarOFXModal({ trigger }: { trigger?: React.ReactNode } =
                           </div>
 
                           <div className="flex justify-between items-center text-xs text-muted-foreground">
-                            <span>Data Extrato: {format(new Date(item.data), 'dd/MM/yyyy')}</span>
+                            <span>Data Extrato: {formatCalendarDate(item.data)}</span>
                           </div>
+
+                          {item.possiveisCorrespondencias.length > 0 && (
+                            <div className="space-y-1 rounded-md border border-amber-500/20 bg-amber-500/5 p-2">
+                              <p className="font-semibold text-amber-700 dark:text-amber-300">
+                                Mesmo valor em outra data ({item.possiveisCorrespondencias.length})
+                              </p>
+                              {item.possiveisCorrespondencias.map((match) => (
+                                <div key={match.id} className="flex justify-between gap-2 text-muted-foreground">
+                                  <span className="truncate">{match.descricao} · {match.status}</span>
+                                  <span className="shrink-0">{formatCalendarDate(match.data_transacao)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
                           {/* Seletor Dinâmico de Tipo e Categoria */}
                           <div className="flex items-center gap-2 border-t pt-2.5">

@@ -500,8 +500,12 @@ describeDatabase('API com PostgreSQL isolado', () => {
     const projected = await agent.get('/api/relatorios/fluxo-contabil').query({
       inicio: '2026-10', fim: '2026-10', status: 'Ambos', conta_ids: account.body.id,
     }).expect(200);
-    expect(projected.body.saidas.find((category: { categoria_nome: string }) =>
-      category.categoria_nome === 'Fatura Cartão associado ao Itaú',
-    ).valores['2026-10']).toBe(0.01);
+    const projectedCardCategory = projected.body.saidas.find((category: {
+      categoria_nome: string;
+      subcategorias: Array<{ subcategoria_nome: string; valores: Record<string, number> }>;
+    }) => category.categoria_nome === 'Cartões de Crédito');
+    expect(projectedCardCategory?.subcategorias.find((subcategory) =>
+      subcategory.subcategoria_nome === 'Cartão associado ao Itaú',
+    )?.valores['2026-10']).toBe(0.01);
   });
 });
