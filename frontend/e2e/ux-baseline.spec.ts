@@ -33,12 +33,12 @@ test('registra usuário e valida a navegação principal', async ({ page, isMobi
   await page.goto('/cadastro');
   await page.getByLabel('Nome').fill('Usuário E2E');
   await page.getByLabel('E-mail').fill(unique);
-  await page.getByLabel('Senha').fill('E2E!2026');
+  await page.getByLabel('Senha', { exact: true }).fill('E2E!2026');
   await page.getByRole('button', { name: 'Criar Conta' }).click();
   await expect(page).toHaveURL(/\/login$/);
 
   await page.getByLabel('E-mail').fill(unique);
-  await page.getByLabel('Senha').fill('E2E!2026');
+  await page.getByLabel('Senha', { exact: true }).fill('E2E!2026');
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: 'Reflexão Kakebo' })).toBeVisible();
@@ -156,11 +156,11 @@ test('audita a tela de recorrências isoladamente', async ({ page }, testInfo) =
   await page.goto('/cadastro');
   await page.getByLabel('Nome').fill('Usuário Recorrências E2E');
   await page.getByLabel('E-mail').fill(unique);
-  await page.getByLabel('Senha').fill('E2E!2026');
+  await page.getByLabel('Senha', { exact: true }).fill('E2E!2026');
   await page.getByRole('button', { name: 'Criar Conta' }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.getByLabel('E-mail').fill(unique);
-  await page.getByLabel('Senha').fill('E2E!2026');
+  await page.getByLabel('Senha', { exact: true }).fill('E2E!2026');
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
