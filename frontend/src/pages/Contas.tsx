@@ -27,7 +27,7 @@ function ContaCard({ conta, onDelete }: { conta: ContaData; onDelete: (id: strin
   const isCartao = conta.tipo === 'CartaoCredito';
   const saldo = Number(conta.saldo_atual ?? 0);
   const limite = Number(conta.cartao_detalhe?.limite_total ?? 0);
-  const disponivel = isCartao ? limite - Math.abs(saldo) : null;
+  const disponivel = isCartao ? limite - saldo : null;
 
   return (
     <Card className="hover:shadow-md transition-shadow duration-200 border-border">
@@ -63,7 +63,7 @@ function ContaCard({ conta, onDelete }: { conta: ContaData; onDelete: (id: strin
             <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 my-2 overflow-hidden">
               <div 
                 className="bg-gradient-to-r from-purple-500 to-indigo-600 h-1.5 rounded-full transition-all duration-500 ease-out" 
-                style={{ width: `${Math.min(limite > 0 ? (Math.abs(saldo) / limite) * 100 : 0, 100)}%` }}
+                style={{ width: `${Math.max(0, Math.min(limite > 0 ? (saldo / limite) * 100 : 0, 100))}%` }}
               />
             </div>
 
@@ -85,7 +85,7 @@ function ContaCard({ conta, onDelete }: { conta: ContaData; onDelete: (id: strin
               <div className="flex flex-col items-end">
                 <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">Total Comprometido</span>
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(saldo))}
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.max(0, saldo))}
                 </span>
               </div>
             </div>

@@ -49,6 +49,40 @@ describe('impacto no saldo', () => {
     expect(calculateBalanceImpactCents({ accountType: 'Corrente', transactionType: 'Transferencia', status: 'Pago', description: '[Entrada] PIX', value: 25 })).toBe(2500);
   });
 
+  it.each(['Corrente', 'Poupanca', 'Dinheiro', 'CartaoCredito'])('não movimenta transferência pendente em %s', (accountType) => {
+    for (const transferDirection of ['Saida', 'Entrada'] as const) {
+      expect(calculateBalanceImpactCents({
+        accountType, transactionType: 'Transferencia', status: 'Pendente', transferDirection, value: 50,
+      })).toBe(0);
+    }
+  });
+
+  it('usa a direção registrada mesmo quando a descrição foi editada', () => {
+    expect(calculateBalanceImpactCents({
+      accountType: 'Corrente', transactionType: 'Transferencia', status: 'Pago',
+      transferDirection: 'Saida', description: 'Aporte mensal', value: 25,
+    })).toBe(-2500);
+    expect(calculateAccountBalanceCents('Corrente', 100, [{
+      tipo: 'Transferencia', status: 'Pago', descricao: '[Saída] texto antigo',
+      transferencia_direcao: 'Entrada', valor: 25,
+    }])).toBe(12500);
+  });
+
+  it('não confunde texto livre com o prefixo de uma transferência legada', () => {
+    expect(calculateBalanceImpactCents({
+      accountType: 'Corrente', transactionType: 'Transferencia', status: 'Pago',
+      description: '[Entrada] Estorno de [Saída] PIX', value: 25,
+    })).toBe(2500);
+  });
+
+  it('preserva o crédito excedente de cartão e desconsidera seu saldo inicial', () => {
+    expect(calculateAccountBalanceCents('CartaoCredito', 999, [
+      { tipo: 'Despesa', status: 'Pendente', descricao: 'Compra', valor: 50.01 },
+      { tipo: 'Transferencia', status: 'Pago', descricao: '[Entrada] Pagamento', valor: 60 },
+      { tipo: 'Despesa', status: 'Pendente', descricao: 'Assinatura futura', valor: 100, recorrente: true, parcela_atual: 2 },
+    ])).toBe(-999);
+  });
+
   it('recalcula uma conta com a mesma regra usada nas escritas', () => {
     expect(calculateAccountBalanceCents('Corrente', 100, [
       { tipo: 'Receita', status: 'Pago', descricao: 'Salário', valor: 50 },

@@ -2,6 +2,7 @@ import { TransacaoRepository } from '../repositories/TransacaoRepository';
 import { Prisma } from '@prisma/client';
 import { randomUUID as uuidv4 } from 'crypto';
 import prisma from '../lib/prisma';
+import { financialTransaction } from '../lib/financialTransaction';
 import { assertAccountOwnership, assertSubcategoryOwnership } from './OwnershipService';
 import { calculateBalanceImpactCents } from '../domain/finance/balanceImpact';
 import { distributeCents, fromCents, toCents } from '../domain/finance/money';
@@ -266,33 +267,42 @@ export class TransacaoService {
   }
 
   async fecharFatura(usuario_id: string, conta_id: string) {
-    const contaCartao = await prisma.contaBancaria.findFirst({
-      where: { id: conta_id, usuario_id, tipo: 'CartaoCredito' },
-      include: { cartao_detalhe: true }
-    });
-    if (!contaCartao) throw new Error('Cartão de crédito não encontrado.');
-    if (contaCartao.cartao_detalhe?.conta_pagamento_padrao_id) {
-      await assertAccountOwnership(contaCartao.cartao_detalhe.conta_pagamento_padrao_id, usuario_id);
-    }
-
-    // Busca transações pendentes e atualiza para Pago
-    const pendentes = await this.transacaoRepo.findPendentesByConta(usuario_id, conta_id);
-    
-    if (pendentes.length === 0) {
-      return { message: "Nenhuma transação pendente para fechar." };
-    }
-
-    // Calcula o total da fatura a ser paga
-    let totalFaturaCents = 0;
-    for (const t of pendentes) {
-      totalFaturaCents += calculateBalanceImpactCents({
-        accountType: 'CartaoCredito', transactionType: t.tipo, status: t.status,
-        description: t.descricao, value: t.valor,
+    return financialTransaction(async (tx) => {
+      const contaCartao = await tx.contaBancaria.findFirst({
+        where: { id: conta_id, usuario_id, tipo: 'CartaoCredito' },
+        include: { cartao_detalhe: true }
       });
-    }
-    const totalFatura = fromCents(totalFaturaCents);
+      if (!contaCartao?.cartao_detalhe) throw new Error('Cartão de crédito não encontrado.');
+      if (contaCartao.cartao_detalhe?.conta_pagamento_padrao_id) {
+        await assertAccountOwnership(contaCartao.cartao_detalhe.conta_pagamento_padrao_id, usuario_id);
+      }
 
-    await prisma.$transaction(async (tx) => {
+      // Parcelas de ciclos futuros continuam comprometendo o limite após o pagamento.
+      const closedCycle = getLastClosedBillingCycle(
+        new Date(), contaCartao.cartao_detalhe!.dia_fechamento, contaCartao.cartao_detalhe!.dia_vencimento,
+      );
+      const pendentes = (await tx.transacao.findMany({ where: { usuario_id, conta_id, status: 'Pendente', fatura_id: null } }))
+        .filter((transaction) => transaction.tipo !== 'Transferencia' && transaction.data_transacao <= closedCycle.end);
+
+      if (pendentes.length === 0) {
+        return { message: "Nenhuma transação pendente para fechar." };
+      }
+
+      // Calcula o total da fatura a ser paga
+      let totalFaturaCents = 0;
+      let statusDeltaCents = 0;
+      for (const t of pendentes) {
+        const input = {
+          accountType: 'CartaoCredito', transactionType: t.tipo,
+          description: t.descricao, transferDirection: t.transferencia_direcao, value: t.valor,
+          recurring: t.recorrente, installmentNumber: t.parcela_atual,
+        };
+        const paidImpact = calculateBalanceImpactCents({ ...input, status: 'Pago' });
+        totalFaturaCents += paidImpact;
+        statusDeltaCents += paidImpact - calculateBalanceImpactCents({ ...input, status: t.status });
+      }
+      const totalFatura = fromCents(totalFaturaCents);
+
       // 1. Marca todas como pagas
       for (const transacao of pendentes) {
         await tx.transacao.update({
@@ -301,10 +311,10 @@ export class TransacaoService {
         });
       }
 
-      // 2. Zera a fatura do cartão
-      await tx.contaBancaria.update({
+      // Alterar o status não liquida dívidas sem uma transferência de pagamento.
+      if (statusDeltaCents !== 0) await tx.contaBancaria.update({
         where: { id: conta_id },
-        data: { saldo_atual: 0 }
+        data: { saldo_atual: { increment: fromCents(statusDeltaCents) } }
       });
 
       if ((contaCartao?.cartao_detalhe as any)?.conta_pagamento_padrao_id && totalFatura > 0) {
@@ -352,14 +362,17 @@ export class TransacaoService {
           where: { id: contaPagamentoId },
           data: { saldo_atual: { decrement: totalFatura } }
         });
+        await tx.contaBancaria.update({
+          where: { id: conta_id },
+          data: { saldo_atual: { decrement: totalFatura } },
+        });
       }
       await recordFinancialAudit(tx, {
         usuarioId: usuario_id, action: 'FECHAR_FATURA_LEGADO', entity: 'ContaBancaria', entityId: conta_id,
         data: { transacoes: pendentes.length },
       });
+      return { message: `Fatura fechada. ${pendentes.length} transações marcadas como pagas.` };
     });
-
-    return { message: `Fatura fechada. ${pendentes.length} transações marcadas como pagas.` };
   }
 
   async pagarFatura(usuarioId: string, input: {
@@ -384,7 +397,7 @@ export class TransacaoService {
     if (Number.isNaN(paymentDate.getTime())) throw new Error('Data de pagamento inválida.');
     if (paymentCents <= 0) throw new Error('O valor do pagamento deve ser maior que zero.');
 
-    return prisma.$transaction(async (tx) => {
+    return financialTransaction(async (tx) => {
       const lastClosedCycle = getLastClosedBillingCycle(
         paymentDate, cartao.cartao_detalhe!.dia_fechamento, cartao.cartao_detalhe!.dia_vencimento,
       );
@@ -412,6 +425,7 @@ export class TransacaoService {
         const totalCents = purchases.reduce((sum, transaction) => sum + calculateBalanceImpactCents({
           accountType: 'CartaoCredito', transactionType: transaction.tipo, status: transaction.status,
           description: transaction.descricao, value: transaction.valor,
+          transferDirection: transaction.transferencia_direcao,
         }), 0);
         invoice = await tx.faturaCartao.upsert({
           where: { cartao_id_competencia: { cartao_id: cartao.id, competencia: cycle.competence } },
@@ -453,6 +467,7 @@ export class TransacaoService {
       let totalCents = linkedTransactions.reduce((sum, transaction) => sum + calculateBalanceImpactCents({
         accountType: 'CartaoCredito', transactionType: transaction.tipo,
         status: transaction.status, description: transaction.descricao, value: transaction.valor,
+        transferDirection: transaction.transferencia_direcao,
       }), 0);
       let paidCents = toCents(invoice.total_pago);
       for (const transaction of legacyTransactions) {
@@ -471,6 +486,7 @@ export class TransacaoService {
           totalCents += calculateBalanceImpactCents({
             accountType: 'CartaoCredito', transactionType: transaction.tipo,
             status: transaction.status, description: transaction.descricao, value: transaction.valor,
+            transferDirection: transaction.transferencia_direcao,
           });
         }
       }
@@ -526,37 +542,69 @@ export class TransacaoService {
   }
 
   async toggleStatus(id: string, usuario_id: string) {
-    const transacao = await prisma.transacao.findFirst({
-      where: { id, usuario_id }, include: { conta: true },
+    return financialTransaction((tx) => this.setTransactionStatus(tx, id, usuario_id));
+  }
+
+  private async setTransactionStatus(
+    tx: Prisma.TransactionClient, id: string, usuario_id: string, status?: 'Pago' | 'Pendente',
+  ) {
+    const transacao = await tx.transacao.findFirst({
+      where: { id, usuario_id },
+      include: { conta: true, pagamento_fatura_saida: true, pagamento_fatura_entrada: true },
     });
     if (!transacao || transacao.usuario_id !== usuario_id) {
       throw new Error("Transação não encontrada.");
     }
 
-    const novoStatus = transacao.status === 'Pago' ? 'Pendente' : 'Pago';
-    const oldImpact = calculateBalanceImpactCents({
-      accountType: transacao.conta.tipo, transactionType: transacao.tipo,
-      status: transacao.status, description: transacao.descricao, value: transacao.valor,
-      recurring: transacao.recorrente, installmentNumber: transacao.parcela_atual,
-    });
-    const newImpact = calculateBalanceImpactCents({
-      accountType: transacao.conta.tipo, transactionType: transacao.tipo,
-      status: novoStatus, description: transacao.descricao, value: transacao.valor,
-      recurring: transacao.recorrente, installmentNumber: transacao.parcela_atual,
-    });
-    const deltaCents = newImpact - oldImpact;
+    const novoStatus = status ?? (transacao.status === 'Pago' ? 'Pendente' : 'Pago');
+    if (transacao.status === novoStatus) return transacao;
+    if (transacao.pagamento_fatura_saida || transacao.pagamento_fatura_entrada) {
+      throw new Error('Pagamentos de fatura devem ser estornados individualmente.');
+    }
 
-    return prisma.$transaction(async (tx) => {
-      const updated = await tx.transacao.update({ where: { id }, data: { status: novoStatus } });
+    const items = [transacao];
+    if (transacao.tipo === 'Transferencia') {
+      const isOutgoing = transacao.transferencia_direcao
+        ? transacao.transferencia_direcao === 'Saida'
+        : transacao.descricao.startsWith('[Saída]');
+      const baseDescription = transacao.descricao.replace(/^\[(?:Saída|Entrada)\]\s*/, '');
+      const twin = await tx.transacao.findFirst({
+        where: {
+          usuario_id, tipo: 'Transferencia', id: { not: id },
+          ...(transacao.transferencia_grupo_id
+            ? { transferencia_grupo_id: transacao.transferencia_grupo_id }
+            : {
+              transferencia_grupo_id: null,
+              descricao: `${isOutgoing ? '[Entrada]' : '[Saída]'} ${baseDescription}`,
+              data_transacao: transacao.data_transacao, valor: transacao.valor,
+            }),
+        },
+        include: { conta: true, pagamento_fatura_saida: true, pagamento_fatura_entrada: true },
+      });
+      if (transacao.transferencia_grupo_id && !twin) throw new Error('A outra ponta da transferência não foi encontrada.');
+      if (twin) items.push(twin);
+    }
+
+    let updated: Omit<typeof transacao, 'conta' | 'pagamento_fatura_saida' | 'pagamento_fatura_entrada'> = transacao;
+    for (const item of items) {
+      const input = {
+        accountType: item.conta.tipo, transactionType: item.tipo,
+        description: item.descricao, transferDirection: item.transferencia_direcao, value: item.valor,
+        recurring: item.recorrente, installmentNumber: item.parcela_atual,
+      };
+      const deltaCents = calculateBalanceImpactCents({ ...input, status: novoStatus })
+        - calculateBalanceImpactCents({ ...input, status: item.status });
+      const result = await tx.transacao.update({ where: { id: item.id }, data: { status: novoStatus } });
+      if (item.id === id) updated = result;
       if (deltaCents !== 0) await tx.contaBancaria.update({
-        where: { id: transacao.conta_id }, data: { saldo_atual: { increment: fromCents(deltaCents) } },
+        where: { id: item.conta_id }, data: { saldo_atual: { increment: fromCents(deltaCents) } },
       });
-      await recordFinancialAudit(tx, {
-        usuarioId: usuario_id, action: 'ALTERAR_STATUS', entity: 'Transacao', entityId: id,
-        data: { status_anterior: transacao.status, status_novo: novoStatus },
-      });
-      return updated;
+    }
+    await recordFinancialAudit(tx, {
+      usuarioId: usuario_id, action: 'ALTERAR_STATUS', entity: 'Transacao', entityId: id,
+      data: { status_anterior: transacao.status, status_novo: novoStatus },
     });
+    return updated;
   }
 
   async importarTransacoes(usuario_id: string, conta_id: string, transacoesData: any[]) {
@@ -789,8 +837,6 @@ export class TransacaoService {
     // Conjunto de IDs de transações já combinadas para evitar match duplo
     const matchedIds = new Set<string>();
 
-    let saldoDeltaCents = 0;
-
     for (const ofxTr of transacoesOFX) {
       const ofxDate = new Date(ofxTr.data);
 
@@ -811,14 +857,6 @@ export class TransacaoService {
           alreadyPaid: false
         });
 
-        // Calcula impacto no saldo
-        if (conta.tipo !== 'CartaoCredito') {
-          if (ofxTr.tipo === 'Despesa') {
-            saldoDeltaCents -= toCents(ofxTr.valor);
-          } else if (ofxTr.tipo === 'Receita') {
-            saldoDeltaCents += toCents(ofxTr.valor);
-          }
-        }
       } else {
         // B. Se não achou Pendente, procura por uma transação PAGO que já foi lançada
         // com o mesmo valor, tipo e proximidade de data (±3 dias)
@@ -846,24 +884,9 @@ export class TransacaoService {
     // 4. Executa a conciliação atômica no banco de dados para os itens que eram pendentes
     const toUpdate = conciliadas.filter(c => !c.alreadyPaid);
     if (toUpdate.length > 0) {
-      await prisma.$transaction(async (tx) => {
-        // Marca as transações encontradas como Pago
-        const idsToUpdate = toUpdate.map(c => c.transacao.id);
-        await tx.transacao.updateMany({
-          where: {
-            id: { in: idsToUpdate }
-          },
-          data: {
-            status: 'Pago'
-          }
-        });
-
-        // Atualiza o saldo da conta
-        if (saldoDeltaCents !== 0) {
-          await tx.contaBancaria.update({
-            where: { id: conta_id },
-            data: { saldo_atual: { increment: fromCents(saldoDeltaCents) } }
-          });
+      await financialTransaction(async (tx) => {
+        for (const item of toUpdate) {
+          await this.setTransactionStatus(tx, item.transacao.id, usuario_id, 'Pago');
         }
       });
     }
@@ -906,32 +929,35 @@ export class TransacaoService {
     data_transacao: Date,
     valor: number
   ) {
-    valor = fromCents(toCents(valor));
-    const receitaExistente = await prisma.transacao.findUnique({
-      where: { id: receita_id },
-      include: { conta: true }
-    });
+    return financialTransaction(async (tx) => {
+      valor = fromCents(toCents(valor));
+      const receitaExistente = await tx.transacao.findUnique({
+        where: { id: receita_id },
+        include: { conta: true }
+      });
 
-    if (!receitaExistente || receitaExistente.usuario_id !== usuario_id) {
-      throw new Error("Transação de receita não encontrada.");
-    }
-    if (receitaExistente.tipo !== 'Receita') {
-      throw new Error("A transação selecionada deve ser do tipo Receita.");
-    }
-    if (receitaExistente.conta_id === conta_origem_id) {
-      throw new Error("A conta de destino não pode ser igual à conta de origem.");
-    }
+      if (!receitaExistente || receitaExistente.usuario_id !== usuario_id) {
+        throw new Error("Transação de receita não encontrada.");
+      }
+      if (receitaExistente.tipo !== 'Receita') {
+        throw new Error("A transação selecionada deve ser do tipo Receita.");
+      }
+      if (toCents(receitaExistente.valor) !== toCents(valor)) {
+        throw new Error('O valor da transferência deve ser igual ao da receita selecionada.');
+      }
+      if (receitaExistente.conta_id === conta_origem_id) {
+        throw new Error("A conta de destino não pode ser igual à conta de origem.");
+      }
 
-    const contaOrigem = await prisma.contaBancaria.findUnique({
-      where: { id: conta_origem_id }
-    });
-    const contaDestino = receitaExistente.conta;
+      const contaOrigem = await tx.contaBancaria.findUnique({
+        where: { id: conta_origem_id }
+      });
+      const contaDestino = receitaExistente.conta;
 
-    if (!contaOrigem || contaOrigem.usuario_id !== usuario_id) {
-      throw new Error("Conta bancária de origem não encontrada.");
-    }
+      if (!contaOrigem || contaOrigem.usuario_id !== usuario_id) {
+        throw new Error("Conta bancária de origem não encontrada.");
+      }
 
-    return prisma.$transaction(async (tx) => {
       const group = await tx.transferenciaGrupo.create({
         data: { usuario_id, descricao },
       });
@@ -962,31 +988,25 @@ export class TransacaoService {
         }
       });
 
-      if (contaOrigem.tipo === 'CartaoCredito') {
-        await tx.contaBancaria.update({
-          where: { id: conta_origem_id },
-          data: { saldo_atual: { increment: valor } }
-        });
-      } else {
-        await tx.contaBancaria.update({
-          where: { id: conta_origem_id },
-          data: { saldo_atual: { decrement: valor } }
-        });
-      }
-
-      if (receitaExistente.status === 'Pendente') {
-        if (contaDestino.tipo === 'CartaoCredito') {
-          await tx.contaBancaria.update({
-            where: { id: contaDestino.id },
-            data: { saldo_atual: { decrement: valor } }
-          });
-        } else {
-          await tx.contaBancaria.update({
-            where: { id: contaDestino.id },
-            data: { saldo_atual: { increment: valor } }
-          });
-        }
-      }
+      const sourceImpact = calculateBalanceImpactCents({
+        accountType: contaOrigem.tipo, transactionType: 'Transferencia', status: 'Pago',
+        transferDirection: 'Saida', value: valor,
+      });
+      const oldDestinationImpact = calculateBalanceImpactCents({
+        accountType: contaDestino.tipo, transactionType: receitaExistente.tipo,
+        status: receitaExistente.status, value: receitaExistente.valor,
+        recurring: receitaExistente.recorrente, installmentNumber: receitaExistente.parcela_atual,
+      });
+      const destinationDelta = calculateBalanceImpactCents({
+        accountType: contaDestino.tipo, transactionType: 'Transferencia', status: 'Pago',
+        transferDirection: 'Entrada', value: valor,
+      }) - oldDestinationImpact;
+      await tx.contaBancaria.update({
+        where: { id: contaOrigem.id }, data: { saldo_atual: { increment: fromCents(sourceImpact) } },
+      });
+      if (destinationDelta !== 0) await tx.contaBancaria.update({
+        where: { id: contaDestino.id }, data: { saldo_atual: { increment: fromCents(destinationDelta) } },
+      });
 
       await recordFinancialAudit(tx, {
         usuarioId: usuario_id, action: 'CONVERTER_TRANSFERENCIA', entity: 'TransferenciaGrupo', entityId: group.id,
@@ -1108,88 +1128,92 @@ export class TransacaoService {
   }
 
   async editarTransacao(id: string, data: any, usuario_id: string) {
-    const transacaoExistente = await prisma.transacao.findUnique({
-      where: { id },
-      include: {
-        conta: true,
-        pagamento_fatura_saida: true,
-        pagamento_fatura_entrada: true,
+    return financialTransaction(async (tx) => {
+      const transacaoExistente = await tx.transacao.findUnique({
+        where: { id },
+        include: {
+          conta: true,
+          pagamento_fatura_saida: true,
+          pagamento_fatura_entrada: true,
+        }
+      });
+
+      if (!transacaoExistente || transacaoExistente.usuario_id !== usuario_id) {
+        throw new Error("Transação não encontrada.");
       }
-    });
 
-    if (!transacaoExistente || transacaoExistente.usuario_id !== usuario_id) {
-      throw new Error("Transação não encontrada.");
-    }
-
-    const { conta_id, conta_destino_id, subcategoria_id, descricao, valor, tipo, data_transacao, status } = data;
-    await assertSubcategoryOwnership(subcategoria_id, usuario_id);
-
-    // Busca a nova conta
-    const novaConta = await prisma.contaBancaria.findUnique({
-      where: { id: conta_id }
-    });
-
-    if (!novaConta || novaConta.usuario_id !== usuario_id) {
-      throw new Error("Conta bancária de destino não encontrada.");
-    }
-
-    const valorNumerico = fromCents(toCents(valor));
-
-    // Identifica se tem uma transação gêmea (outro lado da transferência)
-    let twinTransacao: any = null;
-
-    if (transacaoExistente.tipo === 'Transferencia') {
-      if (transacaoExistente.transferencia_grupo_id) {
-        twinTransacao = await prisma.transacao.findFirst({
-          where: {
-            usuario_id,
-            transferencia_grupo_id: transacaoExistente.transferencia_grupo_id,
-            id: { not: id },
-          },
-          include: { conta: true },
-        });
+      if (transacaoExistente.pagamento_fatura_saida || transacaoExistente.pagamento_fatura_entrada) {
+        throw new Error('Pagamentos de fatura devem ser estornados individualmente.');
       }
-      const isEntrada = transacaoExistente.descricao.startsWith('[Entrada]');
-      const isSaida = transacaoExistente.descricao.startsWith('[Saída]');
-      
-      if (!twinTransacao && (isEntrada || isSaida)) {
-        const baseDesc = transacaoExistente.descricao.slice(9);
-        const oppositePrefix = isEntrada ? '[Saída]' : '[Entrada]';
-        
-        twinTransacao = await prisma.transacao.findFirst({
-          where: {
-            usuario_id,
-            tipo: 'Transferencia',
-            descricao: {
-              startsWith: oppositePrefix
+
+      const { conta_id, conta_destino_id, subcategoria_id, descricao, valor, tipo, data_transacao, status } = data;
+      await assertSubcategoryOwnership(subcategoria_id, usuario_id);
+
+      // Busca a nova conta
+      const novaConta = await tx.contaBancaria.findUnique({
+        where: { id: conta_id }
+      });
+
+      if (!novaConta || novaConta.usuario_id !== usuario_id) {
+        throw new Error("Conta bancária de destino não encontrada.");
+      }
+
+      const valorNumerico = fromCents(toCents(valor));
+
+      // Identifica se tem uma transação gêmea (outro lado da transferência)
+      let twinTransacao: any = null;
+
+      if (transacaoExistente.tipo === 'Transferencia') {
+        if (transacaoExistente.transferencia_grupo_id) {
+          twinTransacao = await tx.transacao.findFirst({
+            where: {
+              usuario_id,
+              transferencia_grupo_id: transacaoExistente.transferencia_grupo_id,
+              id: { not: id },
             },
-            data_transacao: transacaoExistente.data_transacao,
-            valor: transacaoExistente.valor,
-            id: { not: id }
-          },
-          include: { conta: true }
-        });
+            include: { conta: true },
+          });
+        }
+        const isEntrada = transacaoExistente.descricao.startsWith('[Entrada]');
+        const isSaida = transacaoExistente.descricao.startsWith('[Saída]');
         
-        if (twinTransacao && twinTransacao.descricao.slice(9) !== baseDesc) {
-          twinTransacao = null;
+        if (!twinTransacao && (isEntrada || isSaida)) {
+          const baseDesc = transacaoExistente.descricao.replace(/^\[(?:Saída|Entrada)\]\s*/, '');
+          const oppositePrefix = isEntrada ? '[Saída]' : '[Entrada]';
+
+          twinTransacao = await tx.transacao.findFirst({
+            where: {
+              usuario_id,
+              tipo: 'Transferencia',
+              descricao: `${oppositePrefix} ${baseDesc}`,
+              data_transacao: transacaoExistente.data_transacao,
+              valor: transacaoExistente.valor,
+              id: { not: id }
+            },
+            include: { conta: true }
+          });
+
+          if (twinTransacao && twinTransacao.descricao.replace(/^\[(?:Saída|Entrada)\]\s*/, '') !== baseDesc) {
+            twinTransacao = null;
+          }
         }
       }
-    }
 
-    const novaContaDestino = transacaoExistente.tipo === 'Transferencia' && tipo === 'Transferencia' && twinTransacao
-      ? await assertAccountOwnership(conta_destino_id, usuario_id)
-      : null;
-    if (novaContaDestino?.id === novaConta.id) {
-      throw new Error('A conta de destino deve ser diferente da origem.');
-    }
+      const novaContaDestino = tipo === 'Transferencia'
+        ? await assertAccountOwnership(conta_destino_id, usuario_id)
+        : null;
+      if (novaContaDestino?.id === novaConta.id) {
+        throw new Error('A conta de destino deve ser diferente da origem.');
+      }
 
-    return prisma.$transaction(async (tx) => {
-      if (transacaoExistente.tipo === 'Transferencia' && tipo === 'Transferencia' && twinTransacao && novaContaDestino) {
-        const oldItems = [transacaoExistente, twinTransacao];
+      if (tipo === 'Transferencia' && novaContaDestino) {
+        const oldItems = twinTransacao ? [transacaoExistente, twinTransacao] : [transacaoExistente];
         for (const item of oldItems) {
           const oldImpact = calculateBalanceImpactCents({
-            accountType: item.conta.tipo, transactionType: 'Transferencia', status: item.status,
+            accountType: item.conta.tipo, transactionType: item.tipo, status: item.status,
             description: item.descricao, value: item.valor,
+            transferDirection: item.transferencia_direcao,
+            recurring: item.recorrente, installmentNumber: item.parcela_atual,
           });
           if (oldImpact !== 0) await tx.contaBancaria.update({
             where: { id: item.conta_id }, data: { saldo_atual: { increment: fromCents(-oldImpact) } },
@@ -1197,18 +1221,32 @@ export class TransacaoService {
         }
 
         const baseDesc = String(descricao).replace(/^\[(?:Saída|Entrada)\]\s*/, '');
-        const saidaExistente = oldItems.find((item) => item.transferencia_direcao === 'Saida' || item.descricao.startsWith('[Saída]'))!;
-        const entradaExistente = oldItems.find((item) => item.id !== saidaExistente.id)!;
+        const groupId = transacaoExistente.transferencia_grupo_id ?? (await tx.transferenciaGrupo.create({
+          data: { usuario_id, descricao: baseDesc },
+        })).id;
+        const saidaExistente = twinTransacao ? oldItems.find((item) => item.transferencia_direcao
+          ? item.transferencia_direcao === 'Saida' : item.descricao.startsWith('[Saída]'))! : transacaoExistente;
+        const entradaExistente = oldItems.find((item) => item.id !== saidaExistente.id);
         const saida = await tx.transacao.update({
           where: { id: saidaExistente.id },
           data: { conta_id: novaConta.id, subcategoria_id: null, descricao: `[Saída] ${baseDesc}`, valor: valorNumerico,
-            tipo: 'Transferencia', data_transacao: new Date(data_transacao), status, transferencia_direcao: 'Saida' },
+            tipo: 'Transferencia', data_transacao: new Date(data_transacao), status,
+            transferencia_grupo_id: groupId, transferencia_direcao: 'Saida' },
         });
-        await tx.transacao.update({
-          where: { id: entradaExistente.id },
-          data: { conta_id: novaContaDestino.id, subcategoria_id: null, descricao: `[Entrada] ${baseDesc}`, valor: valorNumerico,
-            tipo: 'Transferencia', data_transacao: new Date(data_transacao), status, transferencia_direcao: 'Entrada' },
-        });
+        const entradaData = {
+          conta_id: novaContaDestino.id, subcategoria_id: null, descricao: `[Entrada] ${baseDesc}`, valor: valorNumerico,
+          tipo: 'Transferencia' as const, data_transacao: new Date(data_transacao), status,
+          transferencia_grupo_id: groupId, transferencia_direcao: 'Entrada' as const,
+        };
+        if (entradaExistente) {
+          await tx.transacao.update({ where: { id: entradaExistente.id }, data: entradaData });
+        } else {
+          await tx.transacao.create({ data: {
+            ...entradaData, usuario_id, recorrente: transacaoExistente.recorrente,
+            parcela_atual: transacaoExistente.parcela_atual, total_parcelas: transacaoExistente.total_parcelas,
+            transacao_pai_id: transacaoExistente.transacao_pai_id,
+          } });
+        }
 
         const sourceImpact = calculateBalanceImpactCents({
           accountType: novaConta.tipo, transactionType: 'Transferencia', status,
@@ -1226,7 +1264,7 @@ export class TransacaoService {
         });
         await recordFinancialAudit(tx, {
           usuarioId: usuario_id, action: 'EDITAR_TRANSFERENCIA', entity: 'TransferenciaGrupo',
-          entityId: transacaoExistente.transferencia_grupo_id ?? id,
+          entityId: groupId,
           data: { conta_origem_id: novaConta.id, conta_destino_id: novaContaDestino.id },
         });
         return saida;
@@ -1237,6 +1275,7 @@ export class TransacaoService {
         status: transacaoExistente.status, description: transacaoExistente.descricao,
         value: transacaoExistente.valor,
         recurring: transacaoExistente.recorrente, installmentNumber: transacaoExistente.parcela_atual,
+        transferDirection: transacaoExistente.transferencia_direcao,
       });
       if (oldImpact !== 0) await tx.contaBancaria.update({
         where: { id: transacaoExistente.conta_id },
@@ -1247,6 +1286,8 @@ export class TransacaoService {
         const oldTwinImpact = calculateBalanceImpactCents({
           accountType: twinTransacao.conta.tipo, transactionType: twinTransacao.tipo,
           status: twinTransacao.status, description: twinTransacao.descricao, value: twinTransacao.valor,
+          transferDirection: twinTransacao.transferencia_direcao,
+          recurring: twinTransacao.recorrente, installmentNumber: twinTransacao.parcela_atual,
         });
         if (oldTwinImpact !== 0) await tx.contaBancaria.update({
           where: { id: twinTransacao.conta_id },
@@ -1262,16 +1303,7 @@ export class TransacaoService {
         where: { id: novaConta.id }, data: { saldo_atual: { increment: fromCents(newImpact) } },
       });
 
-      if (twinTransacao) {
-        const newTwinImpact = calculateBalanceImpactCents({
-          accountType: twinTransacao.conta.tipo, transactionType: 'Transferencia', status,
-          description: twinTransacao.descricao, value: valorNumerico,
-        });
-        if (newTwinImpact !== 0) await tx.contaBancaria.update({
-          where: { id: twinTransacao.conta_id },
-          data: { saldo_atual: { increment: fromCents(newTwinImpact) } },
-        });
-      }
+      if (twinTransacao) await tx.transacao.delete({ where: { id: twinTransacao.id } });
 
       // --- 3. ATUALIZA AS TRANSAÇÕES NO BANCO ---
       // A. Atualiza a transação principal
@@ -1284,28 +1316,12 @@ export class TransacaoService {
           valor: valorNumerico,
           tipo,
           data_transacao: new Date(data_transacao),
-          status
+          status,
+          transferencia_grupo_id: null,
+          transferencia_direcao: null,
         }
       });
 
-      // B. Atualiza a transação gêmea (se existir)
-      if (twinTransacao) {
-        const baseDesc = descricao.startsWith('[Entrada]') || descricao.startsWith('[Saída]') 
-          ? descricao.slice(9) 
-          : descricao;
-        const twinPrefix = twinTransacao.descricao.startsWith('[Saída]') ? '[Saída]' : '[Entrada]';
-        
-        await tx.transacao.update({
-          where: { id: twinTransacao.id },
-          data: {
-            subcategoria_id: subcategoria_id || null,
-            descricao: `${twinPrefix} ${baseDesc}`,
-            valor: valorNumerico,
-            data_transacao: new Date(data_transacao),
-            status
-          }
-        });
-      }
       await recordFinancialAudit(tx, {
         usuarioId: usuario_id, action: 'EDITAR', entity: 'Transacao', entityId: id,
         data: { conta_anterior_id: transacaoExistente.conta_id, conta_nova_id: conta_id, possui_par: Boolean(twinTransacao) },
@@ -1315,61 +1331,59 @@ export class TransacaoService {
   }
 
   async deletarTransacao(id: string, usuario_id: string) {
-    const transacaoExistente = await prisma.transacao.findUnique({
-      where: { id },
-      include: {
-        conta: true,
-        pagamento_fatura_saida: true,
-        pagamento_fatura_entrada: true,
+    return financialTransaction(async (tx) => {
+      const transacaoExistente = await tx.transacao.findUnique({
+        where: { id },
+        include: {
+          conta: true,
+          pagamento_fatura_saida: true,
+          pagamento_fatura_entrada: true,
+        }
+      });
+
+      if (!transacaoExistente || transacaoExistente.usuario_id !== usuario_id) {
+        throw new Error("Transação não encontrada.");
       }
-    });
 
-    if (!transacaoExistente || transacaoExistente.usuario_id !== usuario_id) {
-      throw new Error("Transação não encontrada.");
-    }
+      // Identifica se tem uma transação gêmea (outro lado da transferência)
+      let twinTransacao: any = null;
 
-    // Identifica se tem uma transação gêmea (outro lado da transferência)
-    let twinTransacao: any = null;
-
-    if (transacaoExistente.tipo === 'Transferencia') {
-      if (transacaoExistente.transferencia_grupo_id) {
-        twinTransacao = await prisma.transacao.findFirst({
-          where: {
-            usuario_id,
-            transferencia_grupo_id: transacaoExistente.transferencia_grupo_id,
-            id: { not: id },
-          },
-          include: { conta: true },
-        });
-      }
-      const isEntrada = transacaoExistente.descricao.startsWith('[Entrada]');
-      const isSaida = transacaoExistente.descricao.startsWith('[Saída]');
-      
-      if (!twinTransacao && (isEntrada || isSaida)) {
-        const baseDesc = transacaoExistente.descricao.slice(9);
-        const oppositePrefix = isEntrada ? '[Saída]' : '[Entrada]';
-        
-        twinTransacao = await prisma.transacao.findFirst({
-          where: {
-            usuario_id,
-            tipo: 'Transferencia',
-            descricao: {
-              startsWith: oppositePrefix
+      if (transacaoExistente.tipo === 'Transferencia') {
+        if (transacaoExistente.transferencia_grupo_id) {
+          twinTransacao = await tx.transacao.findFirst({
+            where: {
+              usuario_id,
+              transferencia_grupo_id: transacaoExistente.transferencia_grupo_id,
+              id: { not: id },
             },
-            data_transacao: transacaoExistente.data_transacao,
-            valor: transacaoExistente.valor,
-            id: { not: id }
-          },
-          include: { conta: true }
-        });
+            include: { conta: true },
+          });
+        }
+        const isEntrada = transacaoExistente.descricao.startsWith('[Entrada]');
+        const isSaida = transacaoExistente.descricao.startsWith('[Saída]');
         
-        if (twinTransacao && twinTransacao.descricao.slice(9) !== baseDesc) {
-          twinTransacao = null;
+        if (!twinTransacao && (isEntrada || isSaida)) {
+          const baseDesc = transacaoExistente.descricao.replace(/^\[(?:Saída|Entrada)\]\s*/, '');
+          const oppositePrefix = isEntrada ? '[Saída]' : '[Entrada]';
+
+          twinTransacao = await tx.transacao.findFirst({
+            where: {
+              usuario_id,
+              tipo: 'Transferencia',
+              descricao: `${oppositePrefix} ${baseDesc}`,
+              data_transacao: transacaoExistente.data_transacao,
+              valor: transacaoExistente.valor,
+              id: { not: id }
+            },
+            include: { conta: true }
+          });
+
+          if (twinTransacao && twinTransacao.descricao.replace(/^\[(?:Saída|Entrada)\]\s*/, '') !== baseDesc) {
+            twinTransacao = null;
+          }
         }
       }
-    }
 
-    return prisma.$transaction(async (tx) => {
       const invoicePayment = transacaoExistente.pagamento_fatura_saida
         ?? transacaoExistente.pagamento_fatura_entrada;
       if (invoicePayment) {
@@ -1384,6 +1398,7 @@ export class TransacaoService {
         status: transacaoExistente.status, description: transacaoExistente.descricao,
         value: transacaoExistente.valor,
         recurring: transacaoExistente.recorrente, installmentNumber: transacaoExistente.parcela_atual,
+        transferDirection: transacaoExistente.transferencia_direcao,
       });
       if (impact !== 0) await tx.contaBancaria.update({
         where: { id: transacaoExistente.conta_id },
@@ -1394,6 +1409,8 @@ export class TransacaoService {
         const twinImpact = calculateBalanceImpactCents({
           accountType: twinTransacao.conta.tipo, transactionType: twinTransacao.tipo,
           status: twinTransacao.status, description: twinTransacao.descricao, value: twinTransacao.valor,
+          transferDirection: twinTransacao.transferencia_direcao,
+          recurring: twinTransacao.recorrente, installmentNumber: twinTransacao.parcela_atual,
         });
         if (twinImpact !== 0) await tx.contaBancaria.update({
           where: { id: twinTransacao.conta_id },
@@ -1472,7 +1489,7 @@ export class TransacaoService {
           const isSaida = transacao.descricao.startsWith('[Saída]');
 
           if (!twinTransacao && (isEntrada || isSaida)) {
-            const baseDesc = transacao.descricao.slice(9);
+            const baseDesc = transacao.descricao.replace(/^\[(?:Saída|Entrada)\]\s*/, '');
             const oppositePrefix = isEntrada ? '[Saída]' : '[Entrada]';
 
             twinTransacao = await tx.transacao.findFirst({
@@ -1486,7 +1503,7 @@ export class TransacaoService {
               }
             });
 
-            if (twinTransacao && twinTransacao.descricao.slice(9) !== baseDesc) {
+            if (twinTransacao && twinTransacao.descricao.replace(/^\[(?:Saída|Entrada)\]\s*/, '') !== baseDesc) {
               twinTransacao = null;
             }
           }
@@ -1504,6 +1521,7 @@ export class TransacaoService {
           accountType: contaPrincipal.tipo, transactionType: transacao.tipo,
           status: transacao.status, description: transacao.descricao, value: transacao.valor,
           recurring: transacao.recorrente, installmentNumber: transacao.parcela_atual,
+          transferDirection: transacao.transferencia_direcao,
         });
         if (impact !== 0) await tx.contaBancaria.update({
           where: { id: transacao.conta_id },
@@ -1522,6 +1540,8 @@ export class TransacaoService {
           const twinImpact = calculateBalanceImpactCents({
             accountType: contaTwin.tipo, transactionType: twinTransacao.tipo,
             status: twinTransacao.status, description: twinTransacao.descricao, value: twinTransacao.valor,
+            transferDirection: twinTransacao.transferencia_direcao,
+            recurring: twinTransacao.recorrente, installmentNumber: twinTransacao.parcela_atual,
           });
           if (twinImpact !== 0) await tx.contaBancaria.update({
             where: { id: twinTransacao.conta_id },
@@ -1700,6 +1720,7 @@ export class TransacaoService {
         const totalCents = restantes.reduce((sum, item) => sum + calculateBalanceImpactCents({
           accountType: 'CartaoCredito', transactionType: item.tipo, status: item.status,
           description: item.descricao, value: item.valor,
+          transferDirection: item.transferencia_direcao,
         }), 0);
         await tx.faturaCartao.update({ where: { id: invoiceId }, data: { total: fromCents(totalCents) } });
         await this.invoiceService.refreshStatus(tx, invoiceId);

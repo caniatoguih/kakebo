@@ -368,11 +368,13 @@ export class RecorrenciaService {
           accountType: transaction.conta.tipo, transactionType: transaction.tipo,
           status: transaction.status, description: transaction.descricao, value: transaction.valor,
           recurring: transaction.recorrente, installmentNumber: transaction.parcela_atual,
+          transferDirection: transaction.transferencia_direcao,
         });
         const newImpact = calculateBalanceImpactCents({
           accountType: transaction.conta.tipo, transactionType: transaction.tipo,
           status: transaction.status, description: transaction.descricao, value: input.novo_valor,
           recurring: transaction.recorrente, installmentNumber: transaction.parcela_atual,
+          transferDirection: transaction.transferencia_direcao,
         });
         accountDeltas.set(transaction.conta_id, (accountDeltas.get(transaction.conta_id) ?? 0) + newImpact - oldImpact);
       }
