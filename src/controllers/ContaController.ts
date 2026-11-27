@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
+import { financialTransaction } from '../lib/financialTransaction';
 import { assertAccountOwnership } from '../services/OwnershipService';
 import { calculateAccountBalanceCents } from '../domain/finance/balanceImpact';
 import { fromCents, toCents } from '../domain/finance/money';
@@ -306,55 +307,59 @@ export class ContaController {
     const { nome, saldo_inicial, limite_total, dia_fechamento, dia_vencimento, conta_pagamento_padrao_id } = req.body;
 
     try {
-      const conta = await prisma.contaBancaria.findFirst({
-        where: { id, usuario_id }
-      });
+      const contaFinal = await financialTransaction(async (tx) => {
+        const conta = await tx.contaBancaria.findFirst({
+          where: { id, usuario_id }
+        });
 
-      if (!conta) {
-        return res.status(404).json({ message: 'Conta não encontrada.' });
-      }
+        if (!conta) return null;
 
-      if (conta_pagamento_padrao_id) {
-        const contaPagamento = await assertAccountOwnership(conta_pagamento_padrao_id, usuario_id);
-        if (contaPagamento.id === id || contaPagamento.tipo === 'CartaoCredito') {
-          return res.status(400).json({ message: 'Selecione uma conta de pagamento válida.' });
+        if (conta_pagamento_padrao_id) {
+          const contaPagamento = await tx.contaBancaria.findFirst({
+            where: { id: conta_pagamento_padrao_id, usuario_id },
+          });
+          if (!contaPagamento || contaPagamento.id === id || contaPagamento.tipo === 'CartaoCredito') {
+            throw new Error('Selecione uma conta de pagamento válida.');
+          }
         }
-      }
 
-      const contaAtualizada = await prisma.contaBancaria.update({
-        where: { id },
-        data: {
-          nome,
-          ...(saldo_inicial !== undefined && { saldo_inicial }),
-          ...(conta.tipo === 'CartaoCredito' && 
-            (limite_total !== undefined || dia_fechamento !== undefined || dia_vencimento !== undefined || conta_pagamento_padrao_id !== undefined) && {
-            cartao_detalhe: {
-              update: {
-                ...(limite_total !== undefined && { limite_total }),
-                ...(dia_fechamento !== undefined && { dia_fechamento }),
-                ...(dia_vencimento !== undefined && { dia_vencimento }),
-                ...(conta_pagamento_padrao_id !== undefined && { conta_pagamento_padrao_id }),
-              } as any
-            }
-          })
-        },
-        include: { cartao_detalhe: true }
+        const contaAtualizada = await tx.contaBancaria.update({
+          where: { id },
+          data: {
+            nome,
+            ...(saldo_inicial !== undefined && { saldo_inicial: conta.tipo === 'CartaoCredito' ? 0 : fromCents(toCents(saldo_inicial)) }),
+            ...(conta.tipo === 'CartaoCredito' &&
+              (limite_total !== undefined || dia_fechamento !== undefined || dia_vencimento !== undefined || conta_pagamento_padrao_id !== undefined) && {
+              cartao_detalhe: {
+                update: {
+                  ...(limite_total !== undefined && { limite_total }),
+                  ...(dia_fechamento !== undefined && { dia_fechamento }),
+                  ...(dia_vencimento !== undefined && { dia_vencimento }),
+                  ...(conta_pagamento_padrao_id !== undefined && { conta_pagamento_padrao_id }),
+                } as any
+              }
+            })
+          },
+          include: { cartao_detalhe: true }
+        });
+
+        // Recalcula o saldo_atual após a atualização do saldo_inicial ou outras alterações
+        const transacoes = await tx.transacao.findMany({
+          where: { conta_id: id }
+        });
+
+        const saldoCalculado = fromCents(calculateAccountBalanceCents(
+          contaAtualizada.tipo, contaAtualizada.saldo_inicial, transacoes,
+        ));
+
+        return tx.contaBancaria.update({
+          where: { id },
+          data: { saldo_atual: saldoCalculado },
+          include: { cartao_detalhe: true }
+        });
       });
 
-      // Recalcula o saldo_atual após a atualização do saldo_inicial ou outras alterações
-      const transacoes = await prisma.transacao.findMany({
-        where: { conta_id: id }
-      });
-
-      const saldoCalculado = fromCents(calculateAccountBalanceCents(
-        contaAtualizada.tipo, contaAtualizada.saldo_inicial, transacoes,
-      ));
-
-      const contaFinal = await prisma.contaBancaria.update({
-        where: { id },
-        data: { saldo_atual: saldoCalculado },
-        include: { cartao_detalhe: true }
-      });
+      if (!contaFinal) return res.status(404).json({ message: 'Conta não encontrada.' });
 
       return res.json(contaFinal);
     } catch (error: any) {
@@ -367,29 +372,31 @@ export class ContaController {
     const { id } = req.params;
 
     try {
-      const conta = await prisma.contaBancaria.findFirst({
-        where: { id, usuario_id }
+      const contaAtualizada = await financialTransaction(async (tx) => {
+        const conta = await tx.contaBancaria.findFirst({
+          where: { id, usuario_id }
+        });
+
+        if (!conta) return null;
+
+        // Busca todas as transações desta conta
+        const transacoes = await tx.transacao.findMany({
+          where: { conta_id: id }
+        });
+
+        const saldoCalculado = fromCents(calculateAccountBalanceCents(
+          conta.tipo, conta.saldo_inicial, transacoes,
+        ));
+
+        // Atualiza o saldo no banco de dados
+        return tx.contaBancaria.update({
+          where: { id },
+          data: { saldo_atual: saldoCalculado },
+          include: { cartao_detalhe: true }
+        });
       });
 
-      if (!conta) {
-        return res.status(404).json({ message: 'Conta não encontrada.' });
-      }
-
-      // Busca todas as transações desta conta
-      const transacoes = await prisma.transacao.findMany({
-        where: { conta_id: id }
-      });
-
-      const saldoCalculado = fromCents(calculateAccountBalanceCents(
-        conta.tipo, conta.saldo_inicial, transacoes,
-      ));
-
-      // Atualiza o saldo no banco de dados
-      const contaAtualizada = await prisma.contaBancaria.update({
-        where: { id },
-        data: { saldo_atual: saldoCalculado },
-        include: { cartao_detalhe: true }
-      });
+      if (!contaAtualizada) return res.status(404).json({ message: 'Conta não encontrada.' });
 
       return res.json(contaAtualizada);
     } catch (error: any) {
